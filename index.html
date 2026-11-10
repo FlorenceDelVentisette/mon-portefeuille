@@ -4662,20 +4662,34 @@ function arbRenderVentes() {
  _arbVentes.forEach(function(v, i){ if(sels[i] && v.nom) sels[i].value = v.nom; });
 }
 
+function arbTypeAchat(a, contrat) {
+ if (a.nom && a.nom !== '__nouveau__') {
+ var l = (DB.av[contrat]||[]).find(function(x){ return x.nom===a.nom; });
+ return l ? l.type : 'etf';
+ }
+ return a.type || 'etf';
+}
+
 function arbRenderAchats() {
  var contrat = document.getElementById('marb-contrat').value;
  var html = '';
  _arbAchats.forEach(function(a, i) {
  var isNew = !a.nom || a.nom === '__nouveau__';
+ var type = arbTypeAchat(a, contrat);
+ var isFonds = type === 'fonds';
+ var isScpiEtf = type === 'scpi' || type === 'etf';
+ var prixLabel = isFonds ? 'Montant (euros)' : 'Prix/part (euros)';
+ var showParts = isScpiEtf && !isNew;
  html += '<div style="margin-bottom:8px;padding:8px;background:rgba(0,0,0,0.2);border-radius:6px">'+
- '<div style="display:grid;grid-template-columns:1fr 110px 28px;gap:6px;align-items:center;margin-bottom:'+(isNew?'6px':'0')+'">'+
- '<select data-ai="'+i+'" onchange="_arbAchats['+i+'].nom=this.value;arbRenderAchats()">'+arbOptionsAchat(contrat)+'</select>'+
- '<input type="number" step="0.01" placeholder="Prix/part ou valeur" value="'+a.prix+'" style="font-size:11px" oninput="_arbAchats['+i+'].prix=this.value;arbMajTotaux()">'+
+ '<div style="display:grid;grid-template-columns:1fr'+(showParts?' 90px':'')+' 90px 28px;gap:6px;align-items:center;margin-bottom:'+(isNew?'6px':'0')+'">'+
+ '<select data-ai="'+i+'" onchange="_arbAchats['+i+'].nom=this.value;_arbAchats['+i+'].parts='';arbRenderAchats()">'+arbOptionsAchat(contrat)+'</select>'+
+ (showParts ? '<input type="number" step="0.0001" placeholder="Nb parts" value="'+(a.parts||'')+'" style="font-size:11px" title="Nombre de parts achetees" oninput="_arbAchats['+i+'].parts=this.value;arbMajTotaux()">' : '')+
+ '<input type="number" step="0.01" placeholder="'+prixLabel+'" value="'+(a.prix||'')+'" style="font-size:11px" title="'+prixLabel+'" oninput="_arbAchats['+i+'].prix=this.value;arbMajTotaux()">'+
  '<button class="btn btn-red btn-sm" style="padding:0 6px" onclick="_arbAchats.splice('+i+',1);arbRenderAchats();arbMajTotaux()">x</button>'+
  '</div>'+
  (isNew ? '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">'+
- '<input type="text" placeholder="Nom du support" value="'+a.nomNouv+'" style="font-size:11px" oninput="_arbAchats['+i+'].nomNouv=this.value">'+
- '<select onchange="_arbAchats['+i+'].type=this.value">'+
+ '<input type="text" placeholder="Nom du support" value="'+(a.nomNouv||'')+'" style="font-size:11px" oninput="_arbAchats['+i+'].nomNouv=this.value">'+
+ '<select onchange="_arbAchats['+i+'].type=this.value;arbRenderAchats()">'+
  '<option value="etf"'+(a.type==='etf'?' selected':'')+'>ETF / Action</option>'+
  '<option value="scpi"'+(a.type==='scpi'?' selected':'')+'>SCPI</option>'+
  '<option value="fonds"'+(a.type==='fonds'?' selected':'')+'>Fonds euros</option>'+
@@ -4741,41 +4755,46 @@ function validerArbitrageAV() {
 
  // Traiter les achats
  _arbAchats.forEach(function(a) {
- var prixAchat = +(a.prix||0);
  var isNouv = !a.nom || a.nom === '__nouveau__';
  var nomDest = isNouv ? (a.nomNouv||'').trim() : a.nom;
  if (!nomDest) return;
- var typeAchat = isNouv ? (a.type||'etf') : null;
+ var prixUnit = +(a.prix||0); // prix unitaire de la part (ou montant total pour fonds)
+ var partsInput = +(a.parts||0); // nb de parts saisies (SCPI/ETF existants)
 
  var ligneDest = (DB.av[contrat]||[]).find(function(l){ return l.nom === nomDest; });
+ var typeAchat = isNouv ? (a.type||'etf') : (ligneDest ? ligneDest.type : 'etf');
+
  if (ligneDest) {
- typeAchat = typeAchat || ligneDest.type;
  if (typeAchat === 'fonds') {
- ligneDest.prixActuel = (ligneDest.prixActuel||0) + prixAchat;
+ // Pour fonds euros : prixUnit = montant versé
+ ligneDest.prixActuel = (ligneDest.prixActuel||0) + prixUnit;
  ligneDest.pru = ligneDest.prixActuel;
  ligneDest.parts = 1;
  } else {
- var partsAchat = prixAchat > 0 && ligneDest.prixActuel > 0 ? prixAchat / ligneDest.prixActuel : 0;
- var totalCout = ligneDest.parts * ligneDest.pru + prixAchat;
+ // SCPI/ETF : on a nb parts + prix/part séparément
+ var partsAchat = partsInput > 0 ? partsInput : (prixUnit > 0 && ligneDest.prixActuel > 0 ? Math.round(prixUnit / ligneDest.prixActuel * 10000)/10000 : 0);
+ var coutAchat = partsInput > 0 ? partsInput * prixUnit : prixUnit;
+ var totalCout = ligneDest.parts * ligneDest.pru + coutAchat;
  ligneDest.parts = Math.round((ligneDest.parts + partsAchat) * 100000) / 100000;
- ligneDest.pru = ligneDest.parts > 0 ? totalCout / ligneDest.parts : (ligneDest.pru||prixAchat);
- ligneDest.prixActuel = ligneDest.prixActuel || prixAchat;
+ ligneDest.pru = ligneDest.parts > 0 ? totalCout / ligneDest.parts : prixUnit;
+ if (prixUnit > 0) ligneDest.prixActuel = prixUnit; // mettre à jour prix actuel
  }
  } else {
- typeAchat = typeAchat || 'etf';
+ // Nouveau support
  var nouvLigne = { nom:nomDest, type:typeAchat, frais:0, dateAchat:date, anneeAchat:date.substring(0,4) };
  if (typeAchat === 'fonds') {
- nouvLigne.parts = 1; nouvLigne.pru = prixAchat; nouvLigne.prixActuel = prixAchat;
- } else if (typeAchat === 'scpi') {
- nouvLigne.parts = 0; nouvLigne.pru = prixAchat; nouvLigne.prixActuel = prixAchat;
+ nouvLigne.parts = 1; nouvLigne.pru = prixUnit; nouvLigne.prixActuel = prixUnit;
  } else {
- nouvLigne.parts = 0; nouvLigne.pru = prixAchat; nouvLigne.prixActuel = prixAchat;
+ // SCPI ou ETF : prixUnit = prix/part, parts = nb parts
+ nouvLigne.parts = partsInput || 0;
+ nouvLigne.pru = prixUnit;
+ nouvLigne.prixActuel = prixUnit;
  }
  if (a.ticker) nouvLigne.ticker = a.ticker;
  DB.av[contrat] = DB.av[contrat] || [];
  DB.av[contrat].push(nouvLigne);
  }
- DB.av.transactions.push({ type:'achat', contrat:contrat, nom:nomDest, parts:0, prix:prixAchat, frais:0, date:date });
+ DB.av.transactions.push({ type:'achat', contrat:contrat, nom:nomDest, parts:partsInput||0, prix:prixUnit, frais:0, date:date });
  });
 
  _arbVentes = []; _arbAchats = [];
