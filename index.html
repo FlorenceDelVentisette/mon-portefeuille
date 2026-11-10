@@ -332,15 +332,16 @@ input[type=range] { width: 100%; accent-color: var(--purple); cursor: pointer; d
  <button class="btn btn-ghost btn-sm" onclick="renderAV()">🔄 Recalculer</button>
  <button class="btn btn-ghost btn-sm" onclick="recalculerFondsEuros()">🔧 Recalc. fonds €</button>
  <button class="btn btn-orange btn-sm" onclick="ouvrirModalArbitrageAV()">↔ Arbitrage</button>
+     <button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="echangerContratsAV()">⚠️ Échanger AV1↔AV2</button>
  </div>
  <div class="grid2 mb12">
  <div class="panel">
- <div class="panel-title c-purple" id="av-titre-avenir2"></div>
- <div class="tbl-wrap" id="av-tbl-avenir"></div>
- </div>
- <div class="panel">
  <div class="panel-title c-blue" id="av-titre-spirit2"></div>
  <div class="tbl-wrap" id="av-tbl-spirit"></div>
+ </div>
+ <div class="panel">
+ <div class="panel-title c-purple" id="av-titre-avenir2"></div>
+ <div class="tbl-wrap" id="av-tbl-avenir"></div>
  </div>
  </div>
  <div class="panel">
@@ -2171,6 +2172,17 @@ function calcAV(l) {
  var inv = l.type==='fonds' ? l.pru : l.parts * l.pru;
  var val = l.type==='fonds' ? l.prixActuel : l.parts * l.prixActuel;
  return { inv:inv, val:val, gain:val-inv, perf:inv>0?(val-inv)/inv:0 };
+}
+
+function echangerContratsAV() {
+ if (!confirm('Échanger toutes les positions de AV1 (Spirit 2) et AV2 (Avenir 2) ?\n\nCette action est irréversible sans sauvegarde manuelle.')) return;
+ var tmp = DB.av['spirit2'];
+ DB.av['spirit2'] = DB.av['avenir2'];
+ DB.av['avenir2'] = tmp;
+ save();
+ sauvegarderFirebase();
+ renderAV();
+ toast('Contrats échangés ✓');
 }
 
 function renderAV() {
