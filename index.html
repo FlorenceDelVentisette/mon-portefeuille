@@ -1871,7 +1871,8 @@ if (l.type === 'scpi') {
  'Primovie': { 'France':70, 'Allemagne':15, 'Europe':15 },
  'Novapierre': { 'France':100 }
  };
- var geo = scpiGeo[l.nom] || { 'France':100 };
+ var nomLower = (l.nom||'').toLowerCase();
+ var geo = scpiGeo[l.nom] || (nomLower.includes('transition') ? { 'Allemagne':25, 'France':20, 'Pays-Bas':15, 'Espagne':12, 'Royaume-Uni':10, 'Autres':18 } : nomLower.includes('iroko') ? { 'France':27, 'Royaume-Uni':27, 'Irlande':16, 'Pays-Bas':10, 'Belgique':8, 'Espagne':7, 'Autres':5 } : { 'France':100 });
  Object.keys(geo).forEach(function(p){ pays[p] = (pays[p]||0) + val * (geo[p]/100); });
  // SCPI = Immobilier, mais c'est une classe d'actif, pas un secteur économique ETF
  // On ne l'ajoute PAS à secteurs (qui ne contient que des secteurs économiques)
