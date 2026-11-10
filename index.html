@@ -2749,6 +2749,50 @@ function renderInvest() {
  '<span style="font-weight:800;font-size:15px;color:var(--purple)">'+fmt(grandTotal)+'</span>'+
  '</div>';
 
+ // Bloc arbitrage fonds euros → SCPI Transition Europe
+ (function() {
+   var avenir2 = DB.av['avenir2'] || [];
+   var fondEuros = avenir2.find(function(l){ return l.type === 'fonds' && l.nom && l.nom.toLowerCase().indexOf('rendement 2') >= 0; });
+   var scpiTE = avenir2.find(function(l){ return l.type === 'scpi' && l.nom && l.nom.toLowerCase().indexOf('transition') >= 0; });
+   if (fondEuros) {
+     var encours = avenir2.reduce(function(s, l) {
+       return s + (l.type === 'fonds' ? (l.prixActuel||0) : (l.parts||0)*(l.prixActuel||0));
+     }, 0);
+     var plafondTE = encours * 0.10;
+     var valTE = scpiTE ? (scpiTE.parts||0)*(scpiTE.prixActuel||scpiTE.pru||0) : 0;
+     var margeTE = Math.max(0, plafondTE - valTE);
+     var prixPartTE = scpiTE ? (scpiTE.prixActuel||scpiTE.pru||183.6) : 183.6;
+     var nbPartsArb = Math.floor(margeTE / (prixPartTE * 0.975));
+     var montantArb = nbPartsArb > 0 ? nbPartsArb * prixPartTE * 0.975 : 0;
+     var soldeFonds = fondEuros.prixActuel || 0;
+
+     var coulArb = montantArb > 0 ? 'var(--orange)' : 'var(--dim)';
+     var msgArb = montantArb > 0
+       ? nbPartsArb + ' part' + (nbPartsArb > 1 ? 's' : '') + ' × ' + fmt2(prixPartTE) + ' = ' + fmt(montantArb) + ' (prix net 97,5%)'
+       : 'Plafond 10% atteint — impossible d\'arbitrer davantage';
+
+     envHTML += '<div style="margin-bottom:12px;border:1px solid var(--orange);border-radius:8px;overflow:hidden">'+
+       '<div style="background:rgba(249,115,22,0.1);padding:8px 12px;display:flex;justify-content:space-between;align-items:center">'+
+       '<span style="font-weight:700;color:var(--orange);font-size:12px">↔ Arbitrage conseillé — Avenir 2</span>'+
+       '<span style="font-size:10px;color:var(--dim)">Encours contrat : '+fmt(encours)+'</span>'+
+       '</div>'+
+       '<div style="display:flex;align-items:center;padding:8px 12px;border-top:1px solid rgba(249,115,22,0.2)">'+
+       '<span style="flex:1;font-size:11px">🔴 Vendre — EUR Suravenir Rendement 2 Libre</span>'+
+       '<span style="font-size:10px;color:var(--dim);margin-right:12px">solde : '+fmt(soldeFonds)+'</span>'+
+       '<span style="font-size:12px;font-weight:700;color:var(--orange)">'+fmt(montantArb)+'</span>'+
+       '</div>'+
+       '<div style="display:flex;align-items:center;padding:8px 12px;border-top:1px solid rgba(249,115,22,0.2)">'+
+       '<span style="flex:1;font-size:11px">🟢 Acheter — SCPI Transition Europe</span>'+
+       '<span style="font-size:10px;color:var(--dim);margin-right:12px">'+msgArb+'</span>'+
+       '<span style="font-size:12px;font-weight:700;color:'+coulArb+'">'+fmt(montantArb)+'</span>'+
+       '</div>'+
+       '<div style="padding:6px 12px;border-top:1px solid rgba(249,115,22,0.2);font-size:10px;color:var(--dim)">'+
+       'Plafond Transition Europe : 10% encours = '+fmt(plafondTE)+' · déjà investi : '+fmt(valTE)+' · marge : '+fmt(margeTE)+
+       '</div>'+
+       '</div>';
+   }
+ })();
+
  envHTML += '<div style="text-align:right">'+
  '<button class="btn btn-secondary btn-sm" onclick="resetReportsInvest()" style="margin-right:8px;border-color:var(--orange);color:var(--orange)">🔄 Repartir à zéro</button>'+
  '<button class="btn btn-purple btn-sm" onclick="validerMoisInvest()">Valider ce mois et reporter</button></div>';
@@ -4619,18 +4663,23 @@ function majModalArbitrageAV() {
  arbMajTotaux();
 }
 
-function arbOptionsVente(contrat) {
- var opts = '<option value="">— Choisir —</option>';
+// arbOptionsVente remplacee par arbOptionsVenteSel
+function arbOptionsVente(contrat){ return arbOptionsVenteSel(contrat, ''); }
+
+function arbOptionsAchat(contrat, selectedNom) {
+ var sel = selectedNom || '';
+ var opts = '<option value="__nouveau__"'+(sel==='__nouveau__'?' selected':'')+'>+ Nouveau support</option>';
  (DB.av[contrat]||[]).forEach(function(l){
- opts += '<option value="'+l.nom+'">'+l.nom+' ('+fmtN(l.parts,4)+' parts @ '+fmt2(l.prixActuel||l.pru)+')</option>';
+ opts += '<option value="'+l.nom+'"'+(sel===l.nom?' selected':'')+'>'+l.nom+'</option>';
  });
  return opts;
 }
 
-function arbOptionsAchat(contrat) {
- var opts = '<option value="__nouveau__">+ Nouveau support</option>';
+function arbOptionsVenteSel(contrat, selectedNom) {
+ var sel = selectedNom || '';
+ var opts = '<option value="">— Choisir —</option>';
  (DB.av[contrat]||[]).forEach(function(l){
- opts += '<option value="'+l.nom+'">'+l.nom+'</option>';
+ opts += '<option value="'+l.nom+'"'+(sel===l.nom?' selected':'')+'>'+l.nom+' ('+fmtN(l.parts,4)+' parts @ '+fmt2(l.prixActuel||l.pru)+')</option>';
  });
  return opts;
 }
@@ -4650,7 +4699,7 @@ function arbRenderVentes() {
  var html = '';
  _arbVentes.forEach(function(v, i) {
  html += '<div style="display:grid;grid-template-columns:1fr 100px 100px 28px;gap:6px;margin-bottom:6px;align-items:center">'+
- '<select data-vi="'+i+'" onchange="_arbVentes['+i+'].nom=this.value;_arbVentes['+i+'].prix=arbPrixActuel(this.value);arbMajTotaux()">'+arbOptionsVente(contrat)+'</select>'+
+ '<select data-vi="'+i+'" onchange="_arbVentes['+i+'].nom=this.value;_arbVentes['+i+'].prix=arbPrixActuel(this.value);arbMajTotaux()">'+arbOptionsVenteSel(contrat, v.nom)+'</select>'+
  '<input type="number" step="0.0001" placeholder="Parts (tout)" value="'+v.parts+'" style="font-size:11px" oninput="_arbVentes['+i+'].parts=this.value;arbMajTotaux()">'+
  '<input type="number" step="0.01" placeholder="Prix/part" value="'+v.prix+'" style="font-size:11px" oninput="_arbVentes['+i+'].prix=this.value;arbMajTotaux()">'+
  '<button class="btn btn-red btn-sm" style="padding:0 6px" onclick="_arbVentes.splice('+i+',1);arbRenderVentes();arbMajTotaux()">x</button>'+
@@ -4658,8 +4707,7 @@ function arbRenderVentes() {
  });
  if (_arbVentes.length === 0) html = '<div class="c-muted" style="font-size:11px;padding:4px 0">Aucune vente ajoutee.</div>';
  document.getElementById('marb-ventes-list').innerHTML = html;
- var sels = document.querySelectorAll('#marb-ventes-list select');
- _arbVentes.forEach(function(v, i){ if(sels[i] && v.nom) sels[i].value = v.nom; });
+
 }
 
 function arbTypeAchat(a, contrat) {
@@ -4682,7 +4730,7 @@ function arbRenderAchats() {
  var showParts = isScpiEtf && !isNew;
  html += '<div style="margin-bottom:8px;padding:8px;background:rgba(0,0,0,0.2);border-radius:6px">'+
  '<div style="display:grid;grid-template-columns:1fr'+(showParts?' 90px':'')+' 90px 28px;gap:6px;align-items:center;margin-bottom:'+(isNew?'6px':'0')+'">'+
- '<select data-ai="'+i+'" onchange="_arbAchats['+i+'].nom=this.value;_arbAchats['+i+'].parts='';arbRenderAchats()">'+arbOptionsAchat(contrat)+'</select>'+
+ '<select data-ai="'+i+'" onchange="_arbAchats['+i+'].nom=this.value;_arbAchats['+i+'].parts='';arbRenderAchats()">'+arbOptionsAchat(contrat, a.nom)+'</select>'+
  (showParts ? '<input type="number" step="0.0001" placeholder="Nb parts" value="'+(a.parts||'')+'" style="font-size:11px" title="Nombre de parts achetees" oninput="_arbAchats['+i+'].parts=this.value;arbMajTotaux()">' : '')+
  '<input type="number" step="0.01" placeholder="'+prixLabel+'" value="'+(a.prix||'')+'" style="font-size:11px" title="'+prixLabel+'" oninput="_arbAchats['+i+'].prix=this.value;arbMajTotaux()">'+
  '<button class="btn btn-red btn-sm" style="padding:0 6px" onclick="_arbAchats.splice('+i+',1);arbRenderAchats();arbMajTotaux()">x</button>'+
@@ -4698,9 +4746,7 @@ function arbRenderAchats() {
  });
  if (_arbAchats.length === 0) html = '<div class="c-muted" style="font-size:11px;padding:4px 0">Aucun achat ajoute.</div>';
  document.getElementById('marb-achats-list').innerHTML = html;
- var sels = document.querySelectorAll('#marb-achats-list select');
- var idx = 0;
- _arbAchats.forEach(function(a){ if(sels[idx] && a.nom) { sels[idx].value = a.nom; } idx++; });
+
 }
 
 function arbPrixActuel(nom) {
