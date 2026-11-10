@@ -2750,48 +2750,51 @@ function renderInvest() {
  '</div>';
 
  // Bloc arbitrage fonds euros → SCPI Transition Europe
- (function() {
-   var avenir2 = DB.av['avenir2'] || [];
-   var fondEuros = avenir2.find(function(l){ return l.type === 'fonds' && l.nom && l.nom.toLowerCase().indexOf('rendement 2') >= 0; });
-   var scpiTE = avenir2.find(function(l){ return l.type === 'scpi' && l.nom && l.nom.toLowerCase().indexOf('transition') >= 0; });
-   if (fondEuros) {
-     var encours = avenir2.reduce(function(s, l) {
-       return s + (l.type === 'fonds' ? (l.prixActuel||0) : (l.parts||0)*(l.prixActuel||0));
-     }, 0);
-     var plafondTE = encours * 0.10;
-     var valTE = scpiTE ? (scpiTE.parts||0)*(scpiTE.prixActuel||scpiTE.pru||0) : 0;
-     var margeTE = Math.max(0, plafondTE - valTE);
-     var prixPartTE = scpiTE ? (scpiTE.prixActuel||scpiTE.pru||183.6) : 183.6;
-     var nbPartsArb = Math.floor(margeTE / (prixPartTE * 0.975));
-     var montantArb = nbPartsArb > 0 ? nbPartsArb * prixPartTE * 0.975 : 0;
-     var soldeFonds = fondEuros.prixActuel || 0;
-
-     var coulArb = montantArb > 0 ? 'var(--orange)' : 'var(--dim)';
-     var msgArb = montantArb > 0
-       ? nbPartsArb + ' part' + (nbPartsArb > 1 ? 's' : '') + ' × ' + fmt2(prixPartTE) + ' = ' + fmt(montantArb) + ' (prix net 97,5%)'
-       : 'Plafond 10% atteint — impossible d\'arbitrer davantage';
-
-     envHTML += '<div style="margin-bottom:12px;border:1px solid var(--orange);border-radius:8px;overflow:hidden">'+
-       '<div style="background:rgba(249,115,22,0.1);padding:8px 12px;display:flex;justify-content:space-between;align-items:center">'+
-       '<span style="font-weight:700;color:var(--orange);font-size:12px">↔ Arbitrage conseillé — Avenir 2</span>'+
-       '<span style="font-size:10px;color:var(--dim)">Encours contrat : '+fmt(encours)+'</span>'+
-       '</div>'+
-       '<div style="display:flex;align-items:center;padding:8px 12px;border-top:1px solid rgba(249,115,22,0.2)">'+
-       '<span style="flex:1;font-size:11px">🔴 Vendre — EUR Suravenir Rendement 2 Libre</span>'+
-       '<span style="font-size:10px;color:var(--dim);margin-right:12px">solde : '+fmt(soldeFonds)+'</span>'+
-       '<span style="font-size:12px;font-weight:700;color:var(--orange)">'+fmt(montantArb)+'</span>'+
-       '</div>'+
-       '<div style="display:flex;align-items:center;padding:8px 12px;border-top:1px solid rgba(249,115,22,0.2)">'+
-       '<span style="flex:1;font-size:11px">🟢 Acheter — SCPI Transition Europe</span>'+
-       '<span style="font-size:10px;color:var(--dim);margin-right:12px">'+msgArb+'</span>'+
-       '<span style="font-size:12px;font-weight:700;color:'+coulArb+'">'+fmt(montantArb)+'</span>'+
-       '</div>'+
-       '<div style="padding:6px 12px;border-top:1px solid rgba(249,115,22,0.2);font-size:10px;color:var(--dim)">'+
-       'Plafond Transition Europe : 10% encours = '+fmt(plafondTE)+' · déjà investi : '+fmt(valTE)+' · marge : '+fmt(margeTE)+
-       '</div>'+
-       '</div>';
+ var _avenir2arb = DB.av['avenir2'] || [];
+ var _fondEuros = null;
+ var _scpiTE = null;
+ for (var _i=0; _i<_avenir2arb.length; _i++) {
+   var _l = _avenir2arb[_i];
+   if (_l.type === 'fonds') _fondEuros = _l;
+   if (_l.type === 'scpi' && _l.nom && _l.nom.toLowerCase().indexOf('transition') >= 0) _scpiTE = _l;
+ }
+ if (_fondEuros) {
+   var _encours = 0;
+   for (var _j=0; _j<_avenir2arb.length; _j++) {
+     var _ll = _avenir2arb[_j];
+     _encours += _ll.type === 'fonds' ? (_ll.prixActuel||0) : (_ll.parts||0)*(_ll.prixActuel||0);
    }
- })();
+   var _plafondTE = _encours * 0.10;
+   var _valTE = _scpiTE ? (_scpiTE.parts||0)*(_scpiTE.prixActuel||_scpiTE.pru||0) : 0;
+   var _margeTE = Math.max(0, _plafondTE - _valTE);
+   var _prixPartTE = _scpiTE ? (_scpiTE.prixActuel||_scpiTE.pru||183.6) : 183.6;
+   var _nbPartsArb = Math.floor(_margeTE / (_prixPartTE * 0.975));
+   var _montantArb = _nbPartsArb > 0 ? Math.round(_nbPartsArb * _prixPartTE * 0.975 * 100)/100 : 0;
+   var _soldeFonds = _fondEuros.prixActuel || 0;
+   var _coulArb = _montantArb > 0 ? 'var(--orange)' : 'var(--dim)';
+   var _msgArb = _montantArb > 0
+     ? _nbPartsArb + ' part' + (_nbPartsArb > 1 ? 's' : '') + ' × ' + fmt2(_prixPartTE) + ' = ' + fmt(_montantArb) + ' (prix net 97,5%)'
+     : 'Plafond 10% atteint — impossible d\'arbitrer davantage';
+   envHTML += '<div style="margin-bottom:12px;border:1px solid var(--orange);border-radius:8px;overflow:hidden">'+
+     '<div style="background:rgba(249,115,22,0.1);padding:8px 12px;display:flex;justify-content:space-between;align-items:center">'+
+     '<span style="font-weight:700;color:var(--orange);font-size:12px">⇔ Arbitrage conseillé — Avenir 2</span>'+
+     '<span style="font-size:10px;color:var(--dim)">Encours contrat : '+fmt(_encours)+'</span>'+
+     '</div>'+
+     '<div style="display:flex;align-items:center;padding:8px 12px;border-top:1px solid rgba(249,115,22,0.2)">'+
+     '<span style="flex:1;font-size:11px">🔴 Vendre — '+(_fondEuros.nom||'Fonds euros')+'</span>'+
+     '<span style="font-size:10px;color:var(--dim);margin-right:12px">solde : '+fmt(_soldeFonds)+'</span>'+
+     '<span style="font-size:12px;font-weight:700;color:var(--orange)">'+fmt(_montantArb)+'</span>'+
+     '</div>'+
+     '<div style="display:flex;align-items:center;padding:8px 12px;border-top:1px solid rgba(249,115,22,0.2)">'+
+     '<span style="flex:1;font-size:11px">🟢 Acheter — SCPI Transition Europe</span>'+
+     '<span style="font-size:10px;color:var(--dim);margin-right:12px">'+_msgArb+'</span>'+
+     '<span style="font-size:12px;font-weight:700;color:'+_coulArb+'">'+fmt(_montantArb)+'</span>'+
+     '</div>'+
+     '<div style="padding:6px 12px;border-top:1px solid rgba(249,115,22,0.2);font-size:10px;color:var(--dim)">'+
+     'Plafond 10% encours : '+fmt(_plafondTE)+' · déjà investi : '+fmt(_valTE)+' · marge : '+fmt(_margeTE)+
+     '</div>'+
+     '</div>';
+ }
 
  envHTML += '<div style="text-align:right">'+
  '<button class="btn btn-secondary btn-sm" onclick="resetReportsInvest()" style="margin-right:8px;border-color:var(--orange);color:var(--orange)">🔄 Repartir à zéro</button>'+
