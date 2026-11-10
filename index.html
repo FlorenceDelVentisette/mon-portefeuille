@@ -2652,7 +2652,7 @@ function renderInvest() {
  if (r.reporter) {
  lignesPEA.push({ label:label, mt:0, note:'⏳ Reporter — cumul '+fmt(r.report)+(prix?' (part: '+fmt2(prix)+')':''), warn:true });
  } else {
- lignesPEA.push({ label:label, mt:r.montantReel, note:'× '+r.parts+(prix?' @ '+fmt2(prix):'')+(r.report>0?' +'+fmt(r.report)+' reste':'') });
+ lignesPEA.push({ label:label, mt:r.montantReel, note:'x '+r.parts+(prix?' @ '+fmt2(prix):'')+(r.report>0?' +'+fmt(r.report)+' reste':'') });
  }
  }
  ajouterLigneETF('ETF Monde (MSCI World)', rMonde, mMonde, prixMonde);
@@ -2773,25 +2773,25 @@ function renderInvest() {
    var _soldeFonds = _fondEuros.prixActuel || 0;
    var _coulArb = _montantArb > 0 ? 'var(--orange)' : 'var(--dim)';
    var _msgArb = _montantArb > 0
-     ? _nbPartsArb + ' part' + (_nbPartsArb > 1 ? 's' : '') + ' × ' + fmt2(_prixPartTE) + ' = ' + fmt(_montantArb) + ' (prix net 97,5%)'
-     : 'Plafond 10% atteint — impossible d\'arbitrer davantage';
+     ? _nbPartsArb + ' part' + (_nbPartsArb > 1 ? 's' : '') + ' x ' + fmt2(_prixPartTE) + ' = ' + fmt(_montantArb) + ' (prix net 97,5%)'
+     : 'Plafond 10% atteint - impossible d\'arbitrer davantage';
    envHTML += '<div style="margin-bottom:12px;border:1px solid var(--orange);border-radius:8px;overflow:hidden">'+
      '<div style="background:rgba(249,115,22,0.1);padding:8px 12px;display:flex;justify-content:space-between;align-items:center">'+
-     '<span style="font-weight:700;color:var(--orange);font-size:12px">⇔ Arbitrage conseillé — Avenir 2</span>'+
-     '<span style="font-size:10px;color:var(--dim)">Encours contrat : '+fmt(_encours)+'</span>'+
+     '<span style="font-weight:700;color:var(--orange);font-size:12px">Arbitrage conseille - Avenir 2</span>'+
+     '<span style="font-size:10px;color:var(--dim)">Encours contrat : '+fmt(_encours)+'</span>'+
      '</div>'+
      '<div style="display:flex;align-items:center;padding:8px 12px;border-top:1px solid rgba(249,115,22,0.2)">'+
-     '<span style="flex:1;font-size:11px">🔴 Vendre — '+(_fondEuros.nom||'Fonds euros')+'</span>'+
-     '<span style="font-size:10px;color:var(--dim);margin-right:12px">solde : '+fmt(_soldeFonds)+'</span>'+
+     '<span style="flex:1;font-size:11px">[V] Vendre - '+(_fondEuros.nom||'Fonds euros')+'</span>'+
+     '<span style="font-size:10px;color:var(--dim);margin-right:12px">solde : '+fmt(_soldeFonds)+'</span>'+
      '<span style="font-size:12px;font-weight:700;color:var(--orange)">'+fmt(_montantArb)+'</span>'+
      '</div>'+
      '<div style="display:flex;align-items:center;padding:8px 12px;border-top:1px solid rgba(249,115,22,0.2)">'+
-     '<span style="flex:1;font-size:11px">🟢 Acheter — SCPI Transition Europe</span>'+
+     '<span style="flex:1;font-size:11px">[A] Acheter - SCPI Transition Europe</span>'+
      '<span style="font-size:10px;color:var(--dim);margin-right:12px">'+_msgArb+'</span>'+
      '<span style="font-size:12px;font-weight:700;color:'+_coulArb+'">'+fmt(_montantArb)+'</span>'+
      '</div>'+
      '<div style="padding:6px 12px;border-top:1px solid rgba(249,115,22,0.2);font-size:10px;color:var(--dim)">'+
-     'Plafond 10% encours : '+fmt(_plafondTE)+' · déjà investi : '+fmt(_valTE)+' · marge : '+fmt(_margeTE)+
+     'Plafond 10% encours : '+fmt(_plafondTE)+'  - deja investi : '+fmt(_valTE)+'  - marge : '+fmt(_margeTE)+
      '</div>'+
      '</div>';
  }
@@ -3613,7 +3613,7 @@ function renderTransmission() {
  +'<div class="panel"><div class="panel-title c-red">⚠️ Sans optimisation</div>'
  +'<div style="font-size:28px;font-weight:800;color:var(--red);margin:8px 0">'+fmt(droitsSansOptim)+'</div>'
  +'<div style="font-size:11px;color:var(--muted)">'
- +(nbEnfants>0?nbEnfants+' enfant(s) × '+fmt(partParEnfant)+' = taxable '+fmt(baseImposParEnfant)+' chacun':'Base taxable : '+fmt(baseImposParEnfant))
+ +(nbEnfants>0?nbEnfants+' enfant(s) x '+fmt(partParEnfant)+' = taxable '+fmt(baseImposParEnfant)+' chacun':'Base taxable : '+fmt(baseImposParEnfant))
  +'</div></div>'
  +'<div class="panel"><div class="panel-title c-green">✅ Avec optimisation</div>'
  +'<div style="font-size:28px;font-weight:800;color:var(--green);margin:8px 0">'+fmt(droitsAvecOptim)+'</div>'
@@ -4733,7 +4733,7 @@ function arbRenderAchats() {
  var showParts = isScpiEtf && !isNew;
  html += '<div style="margin-bottom:8px;padding:8px;background:rgba(0,0,0,0.2);border-radius:6px">'+
  '<div style="display:grid;grid-template-columns:1fr'+(showParts?' 90px':'')+' 90px 28px;gap:6px;align-items:center;margin-bottom:'+(isNew?'6px':'0')+'">'+
- '<select data-ai="'+i+'" onchange="_arbAchats['+i+'].nom=this.value;_arbAchats['+i+'].parts='';arbRenderAchats()">'+arbOptionsAchat(contrat, a.nom)+'</select>'+
+ '<select data-ai="'+i+'" onchange="_arbAchats['+i+'].nom=this.value;_arbAchats['+i+'].parts=\x27\x27;arbRenderAchats()">'+arbOptionsAchat(contrat, a.nom)+'</select>'+
  (showParts ? '<input type="number" step="0.0001" placeholder="Nb parts" value="'+(a.parts||'')+'" style="font-size:11px" title="Nombre de parts achetees" oninput="_arbAchats['+i+'].parts=this.value;arbMajTotaux()">' : '')+
  '<input type="number" step="0.01" placeholder="'+prixLabel+'" value="'+(a.prix||'')+'" style="font-size:11px" title="'+prixLabel+'" oninput="_arbAchats['+i+'].prix=this.value;arbMajTotaux()">'+
  '<button class="btn btn-red btn-sm" style="padding:0 6px" onclick="_arbAchats.splice('+i+',1);arbRenderAchats();arbMajTotaux()">x</button>'+
@@ -4874,7 +4874,7 @@ setTimeout(function() {
  <div class="frow"><label>Solde actuel (€)</label>
  <input type="number" id="livreta-input" step="0.01" placeholder="ex: 5000">
  </div>
- <div class="frow"><label>Cible personnalisée (€) <span style="color:var(--muted);font-size:10px">vide = auto 3× dép.</span></label>
+ <div class="frow"><label>Cible personnalisée (€) <span style="color:var(--muted);font-size:10px">vide = auto 3x dép.</span></label>
  <input type="number" id="livreta-cible-input" step="100" placeholder="calculée automatiquement">
  </div>
  <div class="modal-btns">
