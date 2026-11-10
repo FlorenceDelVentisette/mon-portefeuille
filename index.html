@@ -2750,6 +2750,7 @@ function renderInvest() {
  '</div>';
 
  envHTML += '<div style="text-align:right">'+
+ '<button class="btn btn-secondary btn-sm" onclick="resetReportsInvest()" style="margin-right:8px;border-color:var(--orange);color:var(--orange)">🔄 Repartir à zéro</button>'+
  '<button class="btn btn-purple btn-sm" onclick="validerMoisInvest()">Valider ce mois et reporter</button></div>';
 
  document.getElementById('invest-enveloppes').innerHTML = envHTML;
@@ -4553,6 +4554,15 @@ function updateBudget(cat, li, mi, val) {
  clearTimeout(window._budgetSaveTimer);
  window._budgetSaveTimer = setTimeout(function(){ sauvegarderFirebase(); }, 2000);
  updateBudgetTotals();
+}
+
+function resetReportsInvest() {
+ if (!confirm('Remettre tous les reports à zéro ? Cette action est irréversible.')) return;
+ DB.investReports = {};
+ save();
+ sauvegarderFirebase();
+ toast('Reports remis à zéro. Bonne base pour décembre !');
+ renderInvest();
 }
 
 function validerMoisInvest() {
