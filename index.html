@@ -2345,7 +2345,7 @@ function renderPE() {
  '<td class="r c-orange bold">'+fmt(val)+'</td>'+
  '<td class="r '+cc(g)+'">'+fmt2(g)+'</td>'+
  '<td class="r '+cc(g)+'">'+fmtP(inv>0?g/inv:0)+'</td>'+
- '<td class="r"><input type="number" class="inp-sm" value="'+(a.rendement||'')+'" step="0.1" placeholder="%" onchange="DB.pe['+i+'].rendement=+this.value;DB.pe['+i+'].prixActuel=+(a.prixAchat*(1+(+this.value)/100)).toFixed(4);renderPE();save();sauvegarderFirebase()" style="color:var(--green)"></td>'+
+ '<td class="r"><input type="number" class="inp-sm" value="'+(a.rendement||'')+'" step="0.1" placeholder="%" onchange="DB.pe['+i+'].rendement=+this.value;DB.pe['+i+'].prixActuel=+(DB.pe['+i+'].prixAchat*(1+(+this.value)/100)).toFixed(4);renderPE();save();sauvegarderFirebase()" style="color:var(--green)"></td>'+
  '<td class="r"><input type="number" class="inp-sm" value="'+(a.revenus||'')+'" step="0.01" placeholder="€" onchange="DB.pe['+i+'].revenus=+this.value;save();sauvegarderFirebase()" style="color:var(--blue)"></td>'+
  '<td><button class="btn btn-red btn-sm" onclick="supprimerPE('+i+')">✕</button></td></tr>';
  });
