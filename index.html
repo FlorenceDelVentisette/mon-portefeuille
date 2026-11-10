@@ -2021,7 +2021,7 @@ function renderMapSection(data, containerId, color) {
  var pctSCPIcible = _cr.pctSCPI;
  var pctCrowdCible = _cr.pctCrowd;
  var pctPEcible = _cr.pctPE;
- var pctFondsCible = _cr.pctOr;
+ var pctFondsCible = _cr.pctFonds;
  var rETF=0, rSCPI=0, rFonds=0, rOr=0;
  Object.values(pos).forEach(function(p){
  var z = detecterZoneETF(p.nom);
@@ -2040,8 +2040,8 @@ function renderMapSection(data, containerId, color) {
  { nom:'SCPI', reel:rSCPI, cible:pctSCPIcible, color:'var(--purple)' },
  { nom:'Crowdfunding', reel:crowdVal2, cible:pctCrowdCible, color:'var(--green)' },
  { nom:'Private Equity', reel:peVal2, cible:pctPEcible, color:'var(--orange)' },
- { nom:'Mat. premières/Or',reel:rOr, cible:pctFondsCible, color:'var(--yellow)' },
- { nom:'Fonds euros', reel:rFonds, cible:0, color:'var(--muted)' },
+ { nom:'Mat. premières/Or',reel:rOr, cible:_cr.pctOr, color:'var(--yellow)' },
+ { nom:'Fonds euros', reel:rFonds, cible:pctFondsCible, color:'var(--muted)' },
  ];
  var maxCl = Math.max.apply(null, classes2.map(function(c){ return Math.max(c.reel, totalAll*c.cible); })) || 1;
  var hCl = '<div style="font-size:9px;color:var(--dim);margin-bottom:8px;display:flex;gap:16px">'+
@@ -2155,14 +2155,16 @@ function calcCibles() {
  var pctCrowd = pctSecurite * 0.314;
  var pctPE = pctSecurite * 0.10;
  var pctOr = pctSecurite * 0.10;
+ var pctFonds = 0.02;
  if (DB.strategiePcts) {
  if (DB.strategiePcts.etf) pctActions = DB.strategiePcts.etf;
  if (DB.strategiePcts.scpi) pctSCPI = DB.strategiePcts.scpi;
  if (DB.strategiePcts.crowd) pctCrowd = DB.strategiePcts.crowd;
  if (DB.strategiePcts.pe) pctPE = DB.strategiePcts.pe;
  if (DB.strategiePcts.or) pctOr = DB.strategiePcts.or;
+ if (DB.strategiePcts.fonds) pctFonds = DB.strategiePcts.fonds;
  }
- return { age:age, pctActions:pctActions, pctSCPI:pctSCPI, pctCrowd:pctCrowd, pctPE:pctPE, pctOr:pctOr };
+ return { age:age, pctActions:pctActions, pctSCPI:pctSCPI, pctCrowd:pctCrowd, pctPE:pctPE, pctOr:pctOr, pctFonds:pctFonds };
 }
 
 function calcAV(l) {
@@ -2379,6 +2381,7 @@ function renderInvest() {
  var pctCrowd = _c.pctCrowd;
  var pctPE = _c.pctPE;
  var pctOr = _c.pctOr;
+ var pctFonds = _c.pctFonds || 0.02;
 
  var totalDepenses = 0, nbMoisDepenses = 0;
  ['charges','emprunts','abonnements','loisirs'].forEach(function(sec){
@@ -2413,7 +2416,7 @@ function renderInvest() {
  var budget = budgetBrut - versementLivretA;
 
  var pos = calcPositions ? calcPositions() : {};
- var classeActu = { etf:0, scpi:0, crowd:0, or:0, pe:0 };
+ var classeActu = { etf:0, scpi:0, crowd:0, or:0, pe:0, fonds:0 };
  Object.values(pos||{}).forEach(function(p){
  var z = detecterZoneETF(p.nom);
  if (z === 'Or') classeActu.or += p.sommeLive||0;
@@ -2423,16 +2426,16 @@ function renderInvest() {
  var v = calcAV(l).val||0;
  if (l.type==='scpi') classeActu.scpi += v;
  else if (l.type==='etf') classeActu.etf += v;
- else classeActu.or += v; // fonds euros → assimilé sécurité
+ else classeActu.fonds += v; // fonds euros
  }); });
  (DB.crowd||[]).forEach(function(p){ classeActu.crowd += Math.max((p.montant||0)-(p.capRemb||0),0); });
  (DB.pe||[]).forEach(function(a){ classeActu.pe += (a.parts||0)*(a.prixActuel||0); });
  if (DB.or && DB.or > 0) classeActu.or += DB.or;
 
- var totalActuClasses = classeActu.etf + classeActu.scpi + classeActu.crowd + classeActu.or + classeActu.pe;
+ var totalActuClasses = classeActu.etf + classeActu.scpi + classeActu.crowd + classeActu.or + classeActu.pe + classeActu.fonds;
 
- var CLASSES_CIBLES = { etf:pctActions, scpi:pctSCPI, crowd:pctCrowd, or:pctOr, pe:pctPE };
- var CLASSES_NOMS = ['etf','scpi','crowd','or','pe'];
+ var CLASSES_CIBLES = { etf:pctActions, scpi:pctSCPI, crowd:pctCrowd, or:pctOr, pe:pctPE, fonds:pctFonds };
+ var CLASSES_NOMS = ['etf','scpi','crowd','or','pe','fonds'];
 
  var classeEcarts = {}, classeScores = {}, totalClasseScores = 0;
  CLASSES_NOMS.forEach(function(cl){
@@ -2498,7 +2501,7 @@ function renderInvest() {
  var mTech = mETF * pctsMois['Tech'];
  var mEmerg = mETF * pctsMois['Émergents'];
 
- var CLASSES_LABELS = { etf:'ETF Actions', scpi:'SCPI (AV)', crowd:'Crowdfunding', or:'Matières prem.', pe:'Private Equity' };
+ var CLASSES_LABELS = { etf:'ETF Actions', scpi:'SCPI (AV)', crowd:'Crowdfunding', or:'Matières prem.', pe:'Private Equity', fonds:'Fonds euros' };
  var CLASSES_COLORS = { etf:'var(--blue)', scpi:'var(--purple)', crowd:'var(--green)', or:'var(--yellow)', pe:'var(--orange)' };
  var classesHTML =
  '<table style="width:100%;font-size:11px;border-collapse:collapse">'+
@@ -2720,10 +2723,10 @@ function renderInvest() {
  return lignes;
  }
 
- var lignesAV1 = lignesDynamiquesAV('avenir2', mAVFlo, versementLivretA > 0 ? versementLivretA/4 : 0);
+ var lignesAV1 = lignesDynamiquesAV('spirit2', mAVFlo, versementLivretA > 0 ? versementLivretA/4 : 0);
  blocs.push({ nom:labelAV1(), couleur:'var(--purple)', total:mAVFlo+(versementLivretA>0?versementLivretA/4:0), lignes:lignesAV1 });
 
- var lignesAV2 = lignesDynamiquesAV('spirit2', mAVKarine, versementLivretA > 0 ? versementLivretA/4 : 0);
+ var lignesAV2 = lignesDynamiquesAV('avenir2', mAVKarine, versementLivretA > 0 ? versementLivretA/4 : 0);
  blocs.push({ nom:labelAV2(), couleur:'var(--purple)', total:mAVKarine+(versementLivretA>0?versementLivretA/4:0), lignes:lignesAV2 });
 
  blocs.push({ nom:'La Première Brique', couleur:'var(--green)', total:mCrowd, lignes:[
