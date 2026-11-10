@@ -4607,132 +4607,181 @@ document.addEventListener('click', function(e) {
 
 function ouvrirModalArbitrageAV() {
  document.getElementById('marb-date').value = new Date().toISOString().split('T')[0];
- if (document.getElementById('marb-nom-nouveau')) document.getElementById('marb-nom-nouveau').value = '';
- if (document.getElementById('marb-ticker')) document.getElementById('marb-ticker').value = '';
- if (document.getElementById('marb-bloc-nom-nouveau')) document.getElementById('marb-bloc-nom-nouveau').style.display = 'none';
- if (document.getElementById('marb-bloc-type-nouveau')) document.getElementById('marb-bloc-type-nouveau').style.display = 'none';
- if (document.getElementById('marb-bloc-ticker')) document.getElementById('marb-bloc-ticker').style.display = 'none';
  majModalArbitrageAV();
- majNomNouveauSupport();
  ouvrirModal('modal-arb-av');
 }
+// ---- ARBITRAGE MULTI-POSITIONS ----
+var _arbVentes = [], _arbAchats = [];
+
 function majModalArbitrageAV() {
- var contrat = document.getElementById('marb-contrat').value;
- var lignes = DB.av[contrat] || [];
- var srcSel = document.getElementById('marb-source');
- var dstSel = document.getElementById('marb-dest');
- srcSel.innerHTML = '';
- dstSel.innerHTML = '<option value="__nouveau__">+ Nouveau support</option>';
- lignes.forEach(function(l) {
- var o1 = document.createElement('option'); o1.value = l.nom;
- o1.textContent = l.nom + ' (' + fmtN(l.parts,4) + ' parts)'; srcSel.appendChild(o1);
- var o2 = document.createElement('option'); o2.value = l.nom;
- o2.textContent = l.nom; dstSel.appendChild(o2);
- });
- majMontantArbitrage();
-}
-function majNomNouveauSupport() {
- var dest = document.getElementById('marb-dest').value;
- var isNew = dest === '__nouveau__';
- var bn = document.getElementById('marb-bloc-nom-nouveau');
- var btype = document.getElementById('marb-bloc-type-nouveau');
- var bt = document.getElementById('marb-bloc-ticker');
- if (bn) bn.style.display = isNew ? '' : 'none';
- if (btype) btype.style.display = isNew ? '' : 'none';
- if (bt) bt.style.display = isNew ? '' : 'none';
- majPrixAchatLabel();
-}
-function majPrixAchatLabel() {
- var dest = document.getElementById('marb-dest').value;
- var isNew = dest === '__nouveau__';
- var typeEl = document.getElementById('marb-type-nouveau');
- var type = isNew && typeEl ? typeEl.value : 'etf';
- var lbl = document.getElementById('marb-label-prix-achat');
- if (lbl) {
- if (type === 'scpi') lbl.textContent = 'Prix achat (€/part SCPI)';
- else if (type === 'fonds') lbl.textContent = 'Valeur investie (€)';
- else lbl.textContent = 'Prix achat (€/part)';
- }
+ _arbVentes = []; _arbAchats = [];
+ arbRenderVentes(); arbRenderAchats();
+ arbMajTotaux();
 }
 
-function majMontantArbitrage() {
- var contrat = document.getElementById('marb-contrat').value;
- var source = document.getElementById('marb-source').value;
- var ligne = (DB.av[contrat]||[]).find(function(l){ return l.nom === source; });
- if (!ligne) return;
- var partsInput = document.getElementById('marb-parts').value;
- var parts = partsInput ? +partsInput : ligne.parts;
- var prix = +(document.getElementById('marb-prix-vente').value) || ligne.prixActuel || ligne.pru;
- document.getElementById('marb-montant').textContent = fmt2(parts * prix);
+function arbOptionsVente(contrat) {
+ var opts = '<option value="">— Choisir —</option>';
+ (DB.av[contrat]||[]).forEach(function(l){
+ opts += '<option value="'+l.nom+'">'+l.nom+' ('+fmtN(l.parts,4)+' parts @ '+fmt2(l.prixActuel||l.pru)+')</option>';
+ });
+ return opts;
 }
+
+function arbOptionsAchat(contrat) {
+ var opts = '<option value="__nouveau__">+ Nouveau support</option>';
+ (DB.av[contrat]||[]).forEach(function(l){
+ opts += '<option value="'+l.nom+'">'+l.nom+'</option>';
+ });
+ return opts;
+}
+
+function arbAjouterVente() {
+ _arbVentes.push({ nom:'', parts:'', prix:'' });
+ arbRenderVentes();
+}
+
+function arbAjouterAchat() {
+ _arbAchats.push({ nom:'__nouveau__', prix:'', type:'etf', nomNouv:'', ticker:'' });
+ arbRenderAchats();
+}
+
+function arbRenderVentes() {
+ var contrat = document.getElementById('marb-contrat').value;
+ var html = '';
+ _arbVentes.forEach(function(v, i) {
+ html += '<div style="display:grid;grid-template-columns:1fr 100px 100px 28px;gap:6px;margin-bottom:6px;align-items:center">'+
+ '<select data-vi="'+i+'" onchange="_arbVentes['+i+'].nom=this.value;_arbVentes['+i+'].prix=arbPrixActuel(this.value);arbMajTotaux()">'+arbOptionsVente(contrat)+'</select>'+
+ '<input type="number" step="0.0001" placeholder="Parts (tout)" value="'+v.parts+'" style="font-size:11px" oninput="_arbVentes['+i+'].parts=this.value;arbMajTotaux()">'+
+ '<input type="number" step="0.01" placeholder="Prix/part" value="'+v.prix+'" style="font-size:11px" oninput="_arbVentes['+i+'].prix=this.value;arbMajTotaux()">'+
+ '<button class="btn btn-red btn-sm" style="padding:0 6px" onclick="_arbVentes.splice('+i+',1);arbRenderVentes();arbMajTotaux()">x</button>'+
+ '</div>';
+ });
+ if (_arbVentes.length === 0) html = '<div class="c-muted" style="font-size:11px;padding:4px 0">Aucune vente ajoutee.</div>';
+ document.getElementById('marb-ventes-list').innerHTML = html;
+ var sels = document.querySelectorAll('#marb-ventes-list select');
+ _arbVentes.forEach(function(v, i){ if(sels[i] && v.nom) sels[i].value = v.nom; });
+}
+
+function arbRenderAchats() {
+ var contrat = document.getElementById('marb-contrat').value;
+ var html = '';
+ _arbAchats.forEach(function(a, i) {
+ var isNew = !a.nom || a.nom === '__nouveau__';
+ html += '<div style="margin-bottom:8px;padding:8px;background:rgba(0,0,0,0.2);border-radius:6px">'+
+ '<div style="display:grid;grid-template-columns:1fr 110px 28px;gap:6px;align-items:center;margin-bottom:'+(isNew?'6px':'0')+'">'+
+ '<select data-ai="'+i+'" onchange="_arbAchats['+i+'].nom=this.value;arbRenderAchats()">'+arbOptionsAchat(contrat)+'</select>'+
+ '<input type="number" step="0.01" placeholder="Prix/part ou valeur" value="'+a.prix+'" style="font-size:11px" oninput="_arbAchats['+i+'].prix=this.value;arbMajTotaux()">'+
+ '<button class="btn btn-red btn-sm" style="padding:0 6px" onclick="_arbAchats.splice('+i+',1);arbRenderAchats();arbMajTotaux()">x</button>'+
+ '</div>'+
+ (isNew ? '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">'+
+ '<input type="text" placeholder="Nom du support" value="'+a.nomNouv+'" style="font-size:11px" oninput="_arbAchats['+i+'].nomNouv=this.value">'+
+ '<select onchange="_arbAchats['+i+'].type=this.value">'+
+ '<option value="etf"'+(a.type==='etf'?' selected':'')+'>ETF / Action</option>'+
+ '<option value="scpi"'+(a.type==='scpi'?' selected':'')+'>SCPI</option>'+
+ '<option value="fonds"'+(a.type==='fonds'?' selected':'')+'>Fonds euros</option>'+
+ '</select></div>' : '')+
+ '</div>';
+ });
+ if (_arbAchats.length === 0) html = '<div class="c-muted" style="font-size:11px;padding:4px 0">Aucun achat ajoute.</div>';
+ document.getElementById('marb-achats-list').innerHTML = html;
+ var sels = document.querySelectorAll('#marb-achats-list select');
+ var idx = 0;
+ _arbAchats.forEach(function(a){ if(sels[idx] && a.nom) { sels[idx].value = a.nom; } idx++; });
+}
+
+function arbPrixActuel(nom) {
+ var contrat = document.getElementById('marb-contrat').value;
+ var l = (DB.av[contrat]||[]).find(function(x){ return x.nom===nom; });
+ return l ? (l.prixActuel||l.pru||0) : 0;
+}
+
+function arbMontantVente(v) {
+ var contrat = document.getElementById('marb-contrat').value;
+ var l = (DB.av[contrat]||[]).find(function(x){ return x.nom===v.nom; });
+ if (!l || !v.nom) return 0;
+ var parts = v.parts ? +v.parts : l.parts;
+ var prix = v.prix ? +v.prix : (l.prixActuel||l.pru||0);
+ return parts * prix;
+}
+
+function arbMajTotaux() {
+ var totalV = _arbVentes.reduce(function(s,v){ return s+arbMontantVente(v); }, 0);
+ document.getElementById('marb-total-ventes').textContent = fmt(totalV);
+ // Pour les achats, on affiche juste le nb de lignes
+ var nbA = _arbAchats.length;
+ document.getElementById('marb-total-achats').textContent = nbA + ' position' + (nbA>1?'s':'');
+}
+
+function majNomNouveauSupport() {}
+function majPrixAchatLabel() {}
+function majMontantArbitrage() {}
 function validerArbitrageAV() {
  var contrat = document.getElementById('marb-contrat').value;
- var source = document.getElementById('marb-source').value;
- var dest = document.getElementById('marb-dest').value;
- var isNouveau = dest === '__nouveau__';
- var typeNouv = 'etf';
- if (isNouveau) {
- var nomNouv = document.getElementById('marb-nom-nouveau') ? document.getElementById('marb-nom-nouveau').value.trim() : '';
- if (!nomNouv) { toast('Saisis le nom du nouveau support !', 'var(--red)'); return; }
- var typeEl = document.getElementById('marb-type-nouveau');
- typeNouv = typeEl ? typeEl.value : 'etf';
- dest = nomNouv;
- }
- var prixVente = +(document.getElementById('marb-prix-vente').value);
- var prixAchat = +(document.getElementById('marb-prix-achat').value);
  var date = document.getElementById('marb-date').value;
- var partsInput = document.getElementById('marb-parts').value;
- var ligneSource = (DB.av[contrat]||[]).find(function(l){ return l.nom === source; });
- if (!ligneSource) { toast('Support source introuvable !', 'var(--red)'); return; }
- if (!prixVente) { toast('Saisis le prix de vente !', 'var(--red)'); return; }
- if (!prixAchat && !isNouveau) { toast('Saisis le prix achat !', 'var(--red)'); return; }
- var partsVente = partsInput ? +partsInput : ligneSource.parts;
- if (partsVente > ligneSource.parts) { toast('Pas assez de parts !', 'var(--red)'); return; }
- var montant = partsVente * prixVente;
- var partsAchat = prixAchat > 0 ? montant / prixAchat : 0;
+ if (!date) { toast('Choisis une date !', 'var(--red)'); return; }
+ if (_arbVentes.length === 0 && _arbAchats.length === 0) { toast('Ajoute au moins une operation !', 'var(--red)'); return; }
+
+ DB.av.transactions = DB.av.transactions || [];
+
+ // Traiter les ventes
+ _arbVentes.forEach(function(v) {
+ if (!v.nom) return;
+ var ligneSource = (DB.av[contrat]||[]).find(function(l){ return l.nom === v.nom; });
+ if (!ligneSource) return;
+ var prixVente = v.prix ? +v.prix : (ligneSource.prixActuel||ligneSource.pru||0);
+ var partsVente = v.parts ? +v.parts : ligneSource.parts;
+ if (partsVente > ligneSource.parts) partsVente = ligneSource.parts;
  ligneSource.parts = Math.round((ligneSource.parts - partsVente) * 100000) / 100000;
  if (ligneSource.parts <= 0.00001) {
- DB.av[contrat].splice(DB.av[contrat].indexOf(ligneSource), 1);
+ var idx = DB.av[contrat].indexOf(ligneSource);
+ if (idx > -1) DB.av[contrat].splice(idx, 1);
  }
- if (isNouveau) {
- var tickerNouv = document.getElementById('marb-ticker') ? document.getElementById('marb-ticker').value.trim() : '';
- var ligneExist = (DB.av[contrat]||[]).find(function(l){ return l.nom === dest; });
- if (ligneExist) {
- var totalCout2 = ligneExist.parts * ligneExist.pru + partsAchat * prixAchat;
- ligneExist.parts = Math.round((ligneExist.parts + partsAchat) * 100000) / 100000;
- ligneExist.pru = ligneExist.parts > 0 ? totalCout2 / ligneExist.parts : prixAchat;
- ligneExist.prixActuel = prixAchat;
+ DB.av.transactions.push({ type:'vente', contrat:contrat, nom:v.nom, parts:partsVente, prix:prixVente, frais:0, date:date });
+ });
+
+ // Traiter les achats
+ _arbAchats.forEach(function(a) {
+ var prixAchat = +(a.prix||0);
+ var isNouv = !a.nom || a.nom === '__nouveau__';
+ var nomDest = isNouv ? (a.nomNouv||'').trim() : a.nom;
+ if (!nomDest) return;
+ var typeAchat = isNouv ? (a.type||'etf') : null;
+
+ var ligneDest = (DB.av[contrat]||[]).find(function(l){ return l.nom === nomDest; });
+ if (ligneDest) {
+ typeAchat = typeAchat || ligneDest.type;
+ if (typeAchat === 'fonds') {
+ ligneDest.prixActuel = (ligneDest.prixActuel||0) + prixAchat;
+ ligneDest.pru = ligneDest.prixActuel;
+ ligneDest.parts = 1;
  } else {
- var nouvLigne = { nom:dest, type:typeNouv, parts:partsAchat, pru:prixAchat, prixActuel:prixAchat, frais:0, dateAchat:date, anneeAchat:date.substring(0,4) };
- if (tickerNouv) nouvLigne.ticker = tickerNouv;
- if (typeNouv === 'scpi') {
- nouvLigne.parts = prixAchat > 0 ? Math.round(montant / prixAchat * 10000) / 10000 : 1;
- nouvLigne.pru = prixAchat || montant;
- nouvLigne.prixActuel = prixAchat || montant;
- } else if (typeNouv === 'fonds') {
- nouvLigne.parts = 1; nouvLigne.pru = montant; nouvLigne.prixActuel = montant;
+ var partsAchat = prixAchat > 0 && ligneDest.prixActuel > 0 ? prixAchat / ligneDest.prixActuel : 0;
+ var totalCout = ligneDest.parts * ligneDest.pru + prixAchat;
+ ligneDest.parts = Math.round((ligneDest.parts + partsAchat) * 100000) / 100000;
+ ligneDest.pru = ligneDest.parts > 0 ? totalCout / ligneDest.parts : (ligneDest.pru||prixAchat);
+ ligneDest.prixActuel = ligneDest.prixActuel || prixAchat;
  }
+ } else {
+ typeAchat = typeAchat || 'etf';
+ var nouvLigne = { nom:nomDest, type:typeAchat, frais:0, dateAchat:date, anneeAchat:date.substring(0,4) };
+ if (typeAchat === 'fonds') {
+ nouvLigne.parts = 1; nouvLigne.pru = prixAchat; nouvLigne.prixActuel = prixAchat;
+ } else if (typeAchat === 'scpi') {
+ nouvLigne.parts = 0; nouvLigne.pru = prixAchat; nouvLigne.prixActuel = prixAchat;
+ } else {
+ nouvLigne.parts = 0; nouvLigne.pru = prixAchat; nouvLigne.prixActuel = prixAchat;
+ }
+ if (a.ticker) nouvLigne.ticker = a.ticker;
  DB.av[contrat] = DB.av[contrat] || [];
  DB.av[contrat].push(nouvLigne);
  }
- } else {
- var ligneDest = (DB.av[contrat]||[]).find(function(l){ return l.nom === dest; });
- if (ligneDest) {
- var totalCout = ligneDest.parts * ligneDest.pru + partsAchat * prixAchat;
- ligneDest.parts += partsAchat;
- ligneDest.pru = ligneDest.parts > 0 ? totalCout / ligneDest.parts : prixAchat;
- ligneDest.prixActuel = prixAchat;
- } else {
- DB.av[contrat].push({ nom:dest, type:'etf', parts:partsAchat, pru:prixAchat, prixActuel:prixAchat, frais:0, dateAchat:date, anneeAchat:date.substring(0,4) });
- }
- }
- DB.av.transactions = DB.av.transactions || [];
- DB.av.transactions.push({ type:'vente', contrat:contrat, nom:source, parts:partsVente, prix:prixVente, frais:0, date:date });
- if (dest !== '__nouveau__') DB.av.transactions.push({ type:'achat', contrat:contrat, nom:dest, parts:partsAchat, prix:prixAchat, frais:0, date:date });
- save(); fermerModal('modal-arb-av'); renderAV();
- toast('Arbitrage effectue !');
-}
+ DB.av.transactions.push({ type:'achat', contrat:contrat, nom:nomDest, parts:0, prix:prixAchat, frais:0, date:date });
+ });
 
+ _arbVentes = []; _arbAchats = [];
+ save(); sauvegarderFirebase(); fermerModal('modal-arb-av'); renderAV();
+ toast('Arbitrage enregistre !');
+}
 function ouvrirModalHistoriqueAV() {
  document.getElementById('mh-env').value = 'av';
  afficherExistant();
@@ -4929,7 +4978,7 @@ setTimeout(function() {
 
 <!-- Modal Arbitrage AV -->
 <div class="modal-bg" id="modal-arb-av">
- <div class="modal">
+ <div class="modal" style="max-width:640px;width:95%">
  <h3>↔ Arbitrage AV</h3>
  <div class="frow"><label>Contrat</label>
  <select id="marb-contrat" onchange="majModalArbitrageAV()">
@@ -4937,46 +4986,30 @@ setTimeout(function() {
  <option value="spirit2">Linxea Spirit 2</option>
  </select>
  </div>
- <div class="frow"><label>Support à vendre</label>
- <select id="marb-source" onchange="majMontantArbitrage()"></select>
- </div>
- <div class="fgrid">
- <div class="frow"><label>Nb parts (vide = tout)</label>
- <input type="number" id="marb-parts" step="0.0001" placeholder="tout si vide" oninput="majMontantArbitrage()">
- </div>
- <div class="frow"><label>Prix de vente (€/part)</label>
- <input type="number" id="marb-prix-vente" step="0.01" oninput="majMontantArbitrage()">
- </div>
- </div>
- <div class="ftotal">
- <div class="fl">Montant à réinvestir</div>
- <div class="fv" id="marb-montant">0,00 €</div>
- </div>
- <div class="frow"><label>Support à acheter</label>
- <select id="marb-dest" onchange="majNomNouveauSupport()"></select>
- </div>
- <div class="frow" id="marb-bloc-nom-nouveau" style="display:none">
- <label>Nom du nouveau support</label>
- <input type="text" id="marb-nom-nouveau" placeholder="ex: SCPI Iroko Zen...">
- </div>
- <div class="frow" id="marb-bloc-type-nouveau" style="display:none">
- <label>Type de support</label>
- <select id="marb-type-nouveau" onchange="majPrixAchatLabel()">
- <option value="etf">ETF / Action</option>
- <option value="scpi">SCPI</option>
- <option value="fonds">Fonds euros</option>
- </select>
- </div>
- <div class="frow" id="marb-bloc-ticker" style="display:none">
- <label>Ticker (optionnel)</label>
- <input type="text" id="marb-ticker" placeholder="ex: EPA:DCAM">
- </div>
- <div class="frow"><label id="marb-label-prix-achat">Prix achat (€/part)</label>
- <input type="number" id="marb-prix-achat" step="0.01">
- </div>
  <div class="frow"><label>Date</label>
  <input type="date" id="marb-date">
  </div>
+
+ <!-- VENTES -->
+ <div style="margin:14px 0 6px;font-size:12px;font-weight:700;color:var(--orange)">📤 Positions vendues</div>
+ <div id="marb-ventes-list"></div>
+ <button class="btn btn-ghost btn-sm" onclick="arbAjouterVente()" style="margin-bottom:12px;border-color:var(--orange);color:var(--orange)">+ Ajouter une vente</button>
+
+ <div class="ftotal" style="margin:8px 0">
+ <div class="fl">Total vendu</div>
+ <div class="fv" id="marb-total-ventes" style="color:var(--orange)">0,00 €</div>
+ </div>
+
+ <!-- ACHATS -->
+ <div style="margin:14px 0 6px;font-size:12px;font-weight:700;color:var(--green)">📥 Positions achetées</div>
+ <div id="marb-achats-list"></div>
+ <button class="btn btn-ghost btn-sm" onclick="arbAjouterAchat()" style="margin-bottom:12px;border-color:var(--green);color:var(--green)">+ Ajouter un achat</button>
+
+ <div class="ftotal" style="margin:8px 0">
+ <div class="fl">Total acheté</div>
+ <div class="fv" id="marb-total-achats" style="color:var(--green)">0,00 €</div>
+ </div>
+
  <div class="modal-btns">
  <button class="btn btn-orange" onclick="validerArbitrageAV()">↔ Arbitrer</button>
  <button class="btn btn-ghost" onclick="fermerModal('modal-arb-av')">Annuler</button>
