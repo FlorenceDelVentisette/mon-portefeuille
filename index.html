@@ -297,7 +297,7 @@ input[type=range] { width: 100%; accent-color: var(--purple); cursor: pointer; d
  <div class="panel mb12">
  <div class="panel-title">🌐 Zones ETF — Réel vs Cible</div>
  <div id="rep-zones"></div>
- <div style="margin-top:8px;font-size:9px;color:var(--dim)">Répartition géographique réelle ventilée par composition de chaque ETF · Cibles : Monde 50% · USA 15% · Europe 13% · Tech 12% · Émergents 10%</div>
+ <div style="margin-top:8px;font-size:9px;color:var(--dim)">Répartition géographique réelle ventilée par composition de chaque ETF · Cibles : MSCI World 75% · Émergents 20% · AI &amp; Big Data 5% — Secteurs détaillés par pays</div>
  </div>
  <div class="grid2 mb12">
  <div class="panel">
@@ -1744,13 +1744,60 @@ function finaliserPrixLive() {
 }
 
 var ETF_DATA = {
- 'MSCI World': { pays:{ 'USA':70,'Europe':15,'Japon':6,'Autres':9 }, secteurs:{ 'Tech':24,'Finance':15,'Santé':13,'Conso':12,'Industrie':11,'Autres':25 } },
- 'S&P 500': { pays:{ 'USA':100 }, secteurs:{ 'Tech':31,'Finance':13,'Santé':13,'Conso':11,'Industrie':9,'Autres':23 } },
- 'Stoxx Europe 600': { pays:{ 'UK':22,'France':17,'Allemagne':14,'Suisse':13,'Pays-Bas':7,'Autres':27 }, secteurs:{ 'Finance':18,'Industrie':15,'Santé':14,'Conso':12,'Energie':8,'Autres':33 } },
- 'MSCI Emerging markets': { pays:{ 'Chine':27,'Inde':18,'Taiwan':16,'Corée':12,'Brésil':6,'Autres':21 }, secteurs:{ 'Tech':22,'Finance':22,'Conso':12,'Matériaux':8,'Energie':7,'Autres':29 } },
- 'Xtrackers': { pays:{ 'USA':65,'Europe':20,'Asie':15 }, secteurs:{ 'Tech':95,'Autres':5 } },
- 'Amundi Physical Gold': { pays:{ 'Or':100 }, secteurs:{ 'Matières premières':100 } },
+ 'MSCI World': {
+ pays:{ 'USA':70,'Japon':6,'UK':4,'France':3,'Canada':3,'Allemagne':3,'Suisse':3,'Australie':2,'Pays-Bas':2,'Autres':4 },
+ secteursPays:{
+ 'USA':{ 'Tech':31,'Finance':13,'Santé':13,'Conso':11,'Industrie':9,'Autres':23 },
+ 'Japon':{ 'Industrie':22,'Finance':14,'Conso':14,'Tech':11,'Santé':9,'Autres':30 },
+ 'UK':{ 'Finance':22,'Energie':16,'Santé':14,'Conso':13,'Industrie':11,'Autres':24 },
+ 'France':{ 'Industrie':20,'Luxe':18,'Finance':15,'Santé':14,'Energie':10,'Autres':23 },
+ 'Canada':{ 'Finance':32,'Energie':18,'Matériaux':13,'Industrie':11,'Tech':9,'Autres':17 },
+ 'Allemagne':{ 'Industrie':28,'Finance':14,'Chimie':13,'Conso':12,'Tech':11,'Autres':22 },
+ 'Suisse':{ 'Santé':34,'Alimentaire':22,'Finance':15,'Industrie':11,'Tech':8,'Autres':10 },
+ 'Australie':{ 'Finance':30,'Matériaux':22,'Santé':10,'Industrie':9,'Energie':8,'Autres':21 },
+ 'Pays-Bas':{ 'Tech':28,'Finance':18,'Alimentaire':15,'Santé':12,'Energie':10,'Autres':17 },
+ },
+ secteurs:{ 'Tech':24,'Finance':15,'Santé':13,'Conso':12,'Industrie':11,'Autres':25 }
+ },
+ 'S&P 500': {
+ pays:{ 'USA':100 },
+ secteursPays:{
+ 'USA':{ 'Tech':31,'Finance':13,'Santé':13,'Conso':11,'Industrie':9,'Energie':4,'Autres':19 }
+ },
+ secteurs:{ 'Tech':31,'Finance':13,'Santé':13,'Conso':11,'Industrie':9,'Autres':23 }
+ },
+ 'Stoxx Europe 600': {
+ pays:{ 'UK':22,'France':17,'Allemagne':14,'Suisse':13,'Pays-Bas':7,'Suède':5,'Espagne':4,'Italie':4,'Danemark':4,'Autres':10 },
+ secteursPays:{
+ 'UK':{ 'Finance':22,'Energie':16,'Santé':14,'Conso':13,'Industrie':11,'Autres':24 },
+ 'France':{ 'Industrie':20,'Luxe':18,'Finance':15,'Santé':14,'Energie':10,'Autres':23 },
+ 'Allemagne':{ 'Industrie':28,'Finance':14,'Chimie':13,'Conso':12,'Tech':11,'Autres':22 },
+ 'Suisse':{ 'Santé':34,'Alimentaire':22,'Finance':15,'Industrie':11,'Tech':8,'Autres':10 },
+ 'Pays-Bas':{ 'Tech':28,'Finance':18,'Alimentaire':15,'Santé':12,'Energie':10,'Autres':17 },
+ 'Suède':{ 'Industrie':25,'Finance':20,'Tech':15,'Santé':14,'Conso':10,'Autres':16 },
+ 'Espagne':{ 'Finance':28,'Utilities':18,'Telecom':14,'Energie':12,'Industrie':10,'Autres':18 },
+ 'Italie':{ 'Finance':30,'Energie':15,'Utilities':13,'Industrie':13,'Luxe':10,'Autres':19 },
+ 'Danemark':{ 'Santé':50,'Industrie':18,'Finance':10,'Transport':10,'Conso':7,'Autres':5 },
+ },
+ secteurs:{ 'Finance':18,'Industrie':15,'Santé':14,'Conso':12,'Energie':8,'Autres':33 }
+ },
+ 'MSCI Emerging markets': {
+ pays:{ 'Chine':27,'Inde':18,'Taiwan':16,'Corée':12,'Brésil':6,'Arabie Saoudite':4,'Afrique du Sud':3,'Mexique':2,'Thaïlande':2,'Autres':10 },
+ secteursPays:{
+ 'Chine':{ 'Tech':24,'Finance':22,'Conso':17,'Industrie':11,'Energie':8,'Autres':18 },
+ 'Inde':{ 'Finance':28,'Tech':20,'Energie':11,'Conso':11,'Matériaux':9,'Autres':21 },
+ 'Taiwan':{ 'Tech':68,'Finance':13,'Industrie':8,'Matériaux':5,'Autres':6 },
+ 'Corée':{ 'Tech':45,'Finance':15,'Industrie':12,'Chimie':10,'Conso':8,'Autres':10 },
+ 'Brésil':{ 'Finance':27,'Matériaux':18,'Energie':16,'Utilities':10,'Conso':9,'Autres':20 },
+ 'Arabie Saoudite':{ 'Finance':35,'Energie':25,'Matériaux':15,'Utilities':10,'Industrie':8,'Autres':7 },
+ },
+ secteurs:{ 'Tech':22,'Finance':22,'Conso':12,'Matériaux':8,'Energie':7,'Autres':29 }
+ },
+ 'Xtrackers': { pays:{ 'USA':65,'Europe':20,'Asie':15 }, secteursPays:{}, secteurs:{ 'Tech':95,'Autres':5 } },
+ 'Amundi Physical Gold': { pays:{ 'Or':100 }, secteursPays:{}, secteurs:{ 'Matières premières':100 } },
 }
+
+var ETF_CIBLES_GEO = { 'MSCI World':75, 'MSCI Emerging markets':20, 'AI & Big Data':5 };
 function devinerRepartition(nom) {
 var n = (nom||'').toLowerCase();
 if (n.includes('cac') || n.includes('france')) return { pays:{'France':100}, secteurs:{'Finance':20,'Industrie':20,'Consommation':20,'Santé':20,'Énergie':20} };
@@ -1871,9 +1918,58 @@ function renderMapSection(data, containerId, color) {
 
  var totalPays = Object.values(pays).reduce(function(s,v){ return s+v; }, 0) || 1;
  renderMapSection(pays, 'rep-pays', 'var(--blue)');
- renderMapSection(secteurs, 'rep-secteurs', 'var(--purple)');
  renderPieChart('rep-pie-pays', pays, totalPays);
  renderPieChart('rep-pie-secteurs', secteurs, totalVal);
+
+ var secParPays = {};
+ var allEtfs = [];
+ Object.values(pos).forEach(function(p){ if(p.qte>0) allEtfs.push({nom:p.nom, val:p.sommeLive||0}); });
+ ['avenir2','spirit2'].forEach(function(k){
+ (DB.av[k]||[]).forEach(function(l){
+ if(l.type==='etf') allEtfs.push({nom:l.nom, val:calcAV(l).val||0});
+ });
+ });
+ allEtfs.forEach(function(e){
+ var data = ETF_DATA[e.nom] || devinerRepartition(e.nom);
+ if (!data.secteursPays || !Object.keys(data.secteursPays).length) return;
+ Object.keys(data.pays).forEach(function(pays_nom){
+ var pctPays = (data.pays[pays_nom]||0)/100;
+ var valPays = e.val * pctPays;
+ if (valPays < 1) return;
+ var sects = data.secteursPays[pays_nom];
+ if (!sects) return;
+ if (!secParPays[pays_nom]) secParPays[pays_nom] = {};
+ Object.keys(sects).forEach(function(s){
+ secParPays[pays_nom][s] = (secParPays[pays_nom][s]||0) + valPays * (sects[s]/100);
+ });
+ });
+ });
+ var htmlSec = '';
+ var paysTries = Object.keys(secParPays).sort(function(a,b){
+ var ta=Object.values(secParPays[a]).reduce(function(s,v){return s+v;},0);
+ var tb=Object.values(secParPays[b]).reduce(function(s,v){return s+v;},0);
+ return tb-ta;
+ });
+ paysTries.forEach(function(p){
+ var sects = secParPays[p];
+ var totalP = Object.values(sects).reduce(function(s,v){return s+v;},0);
+ var pctP = totalVal > 0 ? (totalP/totalVal*100).toFixed(1) : '0';
+ htmlSec += '<div style="margin-bottom:10px"><div style="font-size:10px;font-weight:700;color:var(--fg);margin-bottom:3px">'+p+' <span style="color:var(--dim);font-weight:400">('+pctP+'%)</span></div>';
+ var sectTries = Object.keys(sects).sort(function(a,b){return sects[b]-sects[a];});
+ var maxS = sects[sectTries[0]]||1;
+ sectTries.forEach(function(s){
+ var w = sects[s]/maxS*100;
+ var pctS = totalP > 0 ? (sects[s]/totalP*100).toFixed(0) : '0';
+ htmlSec += '<div class="bar-row" style="margin-bottom:1px">'+
+ '<span class="bar-label" style="font-size:9px;min-width:90px">'+s+'</span>'+
+ '<div class="bar-track" style="flex:1"><div class="bar-fill" style="width:'+w.toFixed(1)+'%;background:var(--purple)"></div></div>'+
+ '<span class="bar-perf c-muted" style="font-size:9px;width:28px;text-align:right">'+pctS+'%</span>'+
+ '</div>';
+ });
+ htmlSec += '</div>';
+ });
+ if (!htmlSec) renderMapSection(secteurs, 'rep-secteurs', 'var(--purple)');
+ else document.getElementById('rep-secteurs').innerHTML = htmlSec;
 
  var bVal=0, avVal=0, crowdVal2=0, peVal2=0, laVal=0;
  Object.values(pos).forEach(function(p){ bVal += p.sommeLive||0; });
@@ -1994,11 +2090,11 @@ function renderMapSection(data, containerId, color) {
  }); });
 
  var zonesETF = [
- { nom:'Monde', reel:zonesReel['Monde'], cible:0.50, color:'var(--blue)' },
- { nom:'USA', reel:zonesReel['USA'], cible:0.15, color:'var(--yellow)' },
- { nom:'Europe', reel:zonesReel['Europe'], cible:0.13, color:'var(--purple)' },
- { nom:'Tech', reel:zonesReel['Tech'], cible:0.12, color:'var(--orange)' },
- { nom:'Émergents', reel:zonesReel['Émergents'], cible:0.10, color:'var(--green)' },
+ { nom:'Monde', reel:zonesReel['Monde'], cible:0.75, color:'var(--blue)' },
+ { nom:'Émergents', reel:zonesReel['Émergents'], cible:0.20, color:'var(--green)' },
+ { nom:'Tech', reel:zonesReel['Tech'], cible:0.05, color:'var(--orange)' },
+ { nom:'USA', reel:zonesReel['USA'], cible:0, color:'var(--yellow)' },
+ { nom:'Europe', reel:zonesReel['Europe'], cible:0, color:'var(--purple)' },
  ];
  var maxZ = Math.max.apply(null, zonesETF.map(function(z){ return Math.max(z.reel, totalETF*z.cible); })) || 1;
  var hZ = '<div style="font-size:9px;color:var(--dim);margin-bottom:8px;display:flex;gap:16px"><span>▓ Réel</span><span style="opacity:0.4">░ Cible</span></div>';
@@ -2368,7 +2464,7 @@ function renderInvest() {
  var mOr = budget * pctsMoisClasses['or'];
  var mPE = budget * pctsMoisClasses['pe'];
 
- var ZONES_CIBLES = { Monde:0.50, USA:0.15, Europe:0.13, Tech:0.12, 'Émergents':0.10 };
+ var ZONES_CIBLES = { Monde:0.75, 'Émergents':0.20, Tech:0.05, USA:0, Europe:0 };
  var zonesActu = { Monde:0, USA:0, Europe:0, Tech:0, 'Émergents':0 };
  var totalETFActu = 0;
  Object.values(pos||{}).forEach(function(p){
