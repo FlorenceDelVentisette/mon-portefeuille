@@ -1652,14 +1652,14 @@ function majPrixManuelAV(contrat, nom, prix) {
 function fetchStooq(ticker, cb) {
  var s = convertirTicker(ticker);
  if (!s) { cb(null); return; }
- fetch('https://stooq.com/q/l/?s=' + s + '&f=sd2t2ohlcv&h&e=csv')
- .then(function(r){ return r.text(); })
- .then(function(csv) {
+ var yahooUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/' + s + '?interval=1d&range=1d';
+ var proxyUrl = 'https://api.allorigins.win/get?url=' + encodeURIComponent(yahooUrl);
+ fetch(proxyUrl)
+ .then(function(r){ return r.json(); })
+ .then(function(data) {
  try {
- var lines = csv.trim().split('\n');
- if (lines.length < 2) { cb(null); return; }
- var cols = lines[1].split(',');
- var prix = parseFloat(cols[4]); // Close price
+ var inner = JSON.parse(data.contents);
+ var prix = inner.chart.result[0].meta.regularMarketPrice;
  cb(prix > 0 ? prix : null);
  } catch(e) { cb(null); }
  })
