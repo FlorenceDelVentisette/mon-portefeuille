@@ -1653,13 +1653,12 @@ function fetchStooq(ticker, cb) {
  var s = convertirTicker(ticker);
  if (!s) { cb(null); return; }
  var yahooUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/' + s + '?interval=1d&range=1d';
- var proxyUrl = 'https://api.allorigins.win/get?url=' + encodeURIComponent(yahooUrl);
+ var proxyUrl = 'https://corsproxy.io/?' + encodeURIComponent(yahooUrl);
  fetch(proxyUrl)
  .then(function(r){ return r.json(); })
  .then(function(data) {
  try {
- var inner = JSON.parse(data.contents);
- var prix = inner.chart.result[0].meta.regularMarketPrice;
+ var prix = data.chart.result[0].meta.regularMarketPrice;
  cb(prix > 0 ? prix : null);
  } catch(e) { cb(null); }
  })
