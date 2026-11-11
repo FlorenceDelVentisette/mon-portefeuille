@@ -1652,8 +1652,7 @@ function majPrixManuelAV(contrat, nom, prix) {
 function fetchStooq(ticker, cb) {
  var s = convertirTicker(ticker);
  if (!s) { cb(null); return; }
- var yahooUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/' + s + '?interval=1d&range=1d';
- var proxyUrl = 'https://corsproxy.io/?' + encodeURIComponent(yahooUrl);
+ var proxyUrl = '/yahoo-proxy?ticker=' + s;
  fetch(proxyUrl)
  .then(function(r){ return r.json(); })
  .then(function(data) {
