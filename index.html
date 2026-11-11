@@ -332,16 +332,15 @@ input[type=range] { width: 100%; accent-color: var(--purple); cursor: pointer; d
  <button class="btn btn-ghost btn-sm" onclick="renderAV()">🔄 Recalculer</button>
  <button class="btn btn-ghost btn-sm" onclick="recalculerFondsEuros()">🔧 Recalc. fonds €</button>
  <button class="btn btn-orange btn-sm" onclick="ouvrirModalArbitrageAV()">↔ Arbitrage</button>
-     <button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="echangerContratsAV()">⚠️ Échanger AV1↔AV2</button>
  </div>
  <div class="grid2 mb12">
  <div class="panel">
- <div class="panel-title c-blue" id="av-titre-spirit2"></div>
- <div class="tbl-wrap" id="av-tbl-spirit"></div>
- </div>
- <div class="panel">
  <div class="panel-title c-purple" id="av-titre-avenir2"></div>
  <div class="tbl-wrap" id="av-tbl-avenir"></div>
+ </div>
+ <div class="panel">
+ <div class="panel-title c-blue" id="av-titre-spirit2"></div>
+ <div class="tbl-wrap" id="av-tbl-spirit"></div>
  </div>
  </div>
  <div class="panel">
@@ -1650,6 +1649,23 @@ function majPrixManuelAV(contrat, nom, prix) {
  }
 }
 
+function fetchStooq(ticker, cb) {
+ var s = convertirTicker(ticker);
+ if (!s) { cb(null); return; }
+ fetch('https://stooq.com/q/l/?s=' + s + '&f=sd2t2ohlcv&h&e=csv')
+ .then(function(r){ return r.text(); })
+ .then(function(csv) {
+ try {
+ var lines = csv.trim().split('\n');
+ if (lines.length < 2) { cb(null); return; }
+ var cols = lines[1].split(',');
+ var prix = parseFloat(cols[4]); // Close price
+ cb(prix > 0 ? prix : null);
+ } catch(e) { cb(null); }
+ })
+ .catch(function(){ cb(null); });
+}
+
 function majPrixLiveAV() {
  var tickerMap = {};
  ['avenir2','spirit2'].forEach(function(k){
@@ -1663,24 +1679,16 @@ function majPrixLiveAV() {
  toast('Chargement des prix live AV...', 'var(--blue)');
  var done = 0, total = noms.length;
  noms.forEach(function(nom) {
- var yahooTicker = convertirTicker(tickerMap[nom]);
- if (!yahooTicker) { done++; if(done===total) finaliserPrixLiveAV(); return; }
- fetch('https://query1.finance.yahoo.com/v8/finance/chart/' + yahooTicker + '?interval=1d&range=1d')
- .then(function(r){ return r.json(); })
- .then(function(data) {
- try {
- var prix = data.chart.result[0].meta.regularMarketPrice;
- if (prix > 0) {
+ fetchStooq(tickerMap[nom], function(prix) {
+ if (prix) {
  ['avenir2','spirit2'].forEach(function(k){
  DB.av[k].forEach(function(l){
  if (l.nom === nom) l.prixActuel = prix;
  });
  });
  }
- } catch(e) {}
  done++; if(done===total) finaliserPrixLiveAV();
- })
- .catch(function(){ done++; if(done===total) finaliserPrixLiveAV(); });
+ });
  });
 }
 function finaliserPrixLiveAV() {
@@ -1705,24 +1713,11 @@ function majPrixLiveBourse() {
  var total = noms.length;
 
  noms.forEach(function(nom) {
- var ticker = tickerMap[nom];
- var yahooTicker = convertirTicker(ticker);
- if (!yahooTicker) { done++; if(done===total) finaliserPrixLive(); return; }
-
- fetch('https://query1.finance.yahoo.com/v8/finance/chart/' + yahooTicker + '?interval=1d&range=1d')
- .then(function(r){ return r.json(); })
- .then(function(data) {
- try {
- var prix = data.chart.result[0].meta.regularMarketPrice;
- if (prix > 0) {
+ fetchStooq(tickerMap[nom], function(prix) {
+ if (prix) {
  if (!DB.prixLive) DB.prixLive = {};
  DB.prixLive[nom] = prix;
  }
- } catch(e) {}
- done++;
- if (done === total) finaliserPrixLive();
- })
- .catch(function() {
  done++;
  if (done === total) finaliserPrixLive();
  });
@@ -1866,14 +1861,10 @@ totalVal += val;
 if (l.type === 'scpi') {
  var scpiGeo = {
  'Iroko Zen': { 'France':27, 'Royaume-Uni':27, 'Irlande':16, 'Pays-Bas':10, 'Belgique':8, 'Espagne':7, 'Autres':5 },
- 'SCPI Iroko Zen': { 'France':27, 'Royaume-Uni':27, 'Irlande':16, 'Pays-Bas':10, 'Belgique':8, 'Espagne':7, 'Autres':5 },
- 'SCPI Transition Europe': { 'Allemagne':25, 'France':20, 'Pays-Bas':15, 'Espagne':12, 'Royaume-Uni':10, 'Autres':18 },
- 'Transition Europe': { 'Allemagne':25, 'France':20, 'Pays-Bas':15, 'Espagne':12, 'Royaume-Uni':10, 'Autres':18 },
  'Primovie': { 'France':70, 'Allemagne':15, 'Europe':15 },
  'Novapierre': { 'France':100 }
  };
- var nomLower = (l.nom||'').toLowerCase();
- var geo = scpiGeo[l.nom] || (nomLower.includes('transition') ? { 'Allemagne':25, 'France':20, 'Pays-Bas':15, 'Espagne':12, 'Royaume-Uni':10, 'Autres':18 } : nomLower.includes('iroko') ? { 'France':27, 'Royaume-Uni':27, 'Irlande':16, 'Pays-Bas':10, 'Belgique':8, 'Espagne':7, 'Autres':5 } : { 'France':100 });
+ var geo = scpiGeo[l.nom] || { 'France':100 };
  Object.keys(geo).forEach(function(p){ pays[p] = (pays[p]||0) + val * (geo[p]/100); });
  // SCPI = Immobilier, mais c'est une classe d'actif, pas un secteur économique ETF
  // On ne l'ajoute PAS à secteurs (qui ne contient que des secteurs économiques)
@@ -2022,7 +2013,7 @@ function renderMapSection(data, containerId, color) {
  var pctSCPIcible = _cr.pctSCPI;
  var pctCrowdCible = _cr.pctCrowd;
  var pctPEcible = _cr.pctPE;
- var pctFondsCible = _cr.pctFonds;
+ var pctFondsCible = _cr.pctOr;
  var rETF=0, rSCPI=0, rFonds=0, rOr=0;
  Object.values(pos).forEach(function(p){
  var z = detecterZoneETF(p.nom);
@@ -2041,8 +2032,8 @@ function renderMapSection(data, containerId, color) {
  { nom:'SCPI', reel:rSCPI, cible:pctSCPIcible, color:'var(--purple)' },
  { nom:'Crowdfunding', reel:crowdVal2, cible:pctCrowdCible, color:'var(--green)' },
  { nom:'Private Equity', reel:peVal2, cible:pctPEcible, color:'var(--orange)' },
- { nom:'Mat. premières/Or',reel:rOr, cible:_cr.pctOr, color:'var(--yellow)' },
- { nom:'Fonds euros', reel:rFonds, cible:pctFondsCible, color:'var(--muted)' },
+ { nom:'Mat. premières/Or',reel:rOr, cible:pctFondsCible, color:'var(--yellow)' },
+ { nom:'Fonds euros', reel:rFonds, cible:0, color:'var(--muted)' },
  ];
  var maxCl = Math.max.apply(null, classes2.map(function(c){ return Math.max(c.reel, totalAll*c.cible); })) || 1;
  var hCl = '<div style="font-size:9px;color:var(--dim);margin-bottom:8px;display:flex;gap:16px">'+
@@ -2156,33 +2147,20 @@ function calcCibles() {
  var pctCrowd = pctSecurite * 0.314;
  var pctPE = pctSecurite * 0.10;
  var pctOr = pctSecurite * 0.10;
- var pctFonds = 0.02;
  if (DB.strategiePcts) {
  if (DB.strategiePcts.etf) pctActions = DB.strategiePcts.etf;
  if (DB.strategiePcts.scpi) pctSCPI = DB.strategiePcts.scpi;
  if (DB.strategiePcts.crowd) pctCrowd = DB.strategiePcts.crowd;
  if (DB.strategiePcts.pe) pctPE = DB.strategiePcts.pe;
  if (DB.strategiePcts.or) pctOr = DB.strategiePcts.or;
- if (DB.strategiePcts.fonds) pctFonds = DB.strategiePcts.fonds;
  }
- return { age:age, pctActions:pctActions, pctSCPI:pctSCPI, pctCrowd:pctCrowd, pctPE:pctPE, pctOr:pctOr, pctFonds:pctFonds };
+ return { age:age, pctActions:pctActions, pctSCPI:pctSCPI, pctCrowd:pctCrowd, pctPE:pctPE, pctOr:pctOr };
 }
 
 function calcAV(l) {
  var inv = l.type==='fonds' ? l.pru : l.parts * l.pru;
  var val = l.type==='fonds' ? l.prixActuel : l.parts * l.prixActuel;
  return { inv:inv, val:val, gain:val-inv, perf:inv>0?(val-inv)/inv:0 };
-}
-
-function echangerContratsAV() {
- if (!confirm('Échanger toutes les positions de AV1 (Spirit 2) et AV2 (Avenir 2) ?\n\nCette action est irréversible sans sauvegarde manuelle.')) return;
- var tmp = DB.av['spirit2'];
- DB.av['spirit2'] = DB.av['avenir2'];
- DB.av['avenir2'] = tmp;
- save();
- sauvegarderFirebase();
- renderAV();
- toast('Contrats échangés ✓');
 }
 
 function renderAV() {
@@ -2359,7 +2337,7 @@ function renderPE() {
  '<td class="r c-orange bold">'+fmt(val)+'</td>'+
  '<td class="r '+cc(g)+'">'+fmt2(g)+'</td>'+
  '<td class="r '+cc(g)+'">'+fmtP(inv>0?g/inv:0)+'</td>'+
- '<td class="r"><input type="number" class="inp-sm" value="'+(a.rendement||'')+'" step="0.1" placeholder="%" onchange="DB.pe['+i+'].rendement=+this.value;DB.pe['+i+'].prixActuel=+(DB.pe['+i+'].prixAchat*(1+(+this.value)/100)).toFixed(4);renderPE();save();sauvegarderFirebase()" style="color:var(--green)"></td>'+
+ '<td class="r"><input type="number" class="inp-sm" value="'+(a.rendement||'')+'" step="0.1" placeholder="%" onchange="DB.pe['+i+'].rendement=+this.value;save();sauvegarderFirebase()" style="color:var(--green)"></td>'+
  '<td class="r"><input type="number" class="inp-sm" value="'+(a.revenus||'')+'" step="0.01" placeholder="€" onchange="DB.pe['+i+'].revenus=+this.value;save();sauvegarderFirebase()" style="color:var(--blue)"></td>'+
  '<td><button class="btn btn-red btn-sm" onclick="supprimerPE('+i+')">✕</button></td></tr>';
  });
@@ -2393,7 +2371,6 @@ function renderInvest() {
  var pctCrowd = _c.pctCrowd;
  var pctPE = _c.pctPE;
  var pctOr = _c.pctOr;
- var pctFonds = _c.pctFonds || 0.02;
 
  var totalDepenses = 0, nbMoisDepenses = 0;
  ['charges','emprunts','abonnements','loisirs'].forEach(function(sec){
@@ -2428,7 +2405,7 @@ function renderInvest() {
  var budget = budgetBrut - versementLivretA;
 
  var pos = calcPositions ? calcPositions() : {};
- var classeActu = { etf:0, scpi:0, crowd:0, or:0, pe:0, fonds:0 };
+ var classeActu = { etf:0, scpi:0, crowd:0, or:0, pe:0 };
  Object.values(pos||{}).forEach(function(p){
  var z = detecterZoneETF(p.nom);
  if (z === 'Or') classeActu.or += p.sommeLive||0;
@@ -2438,16 +2415,16 @@ function renderInvest() {
  var v = calcAV(l).val||0;
  if (l.type==='scpi') classeActu.scpi += v;
  else if (l.type==='etf') classeActu.etf += v;
- else classeActu.fonds += v; // fonds euros
+ else classeActu.or += v; // fonds euros → assimilé sécurité
  }); });
  (DB.crowd||[]).forEach(function(p){ classeActu.crowd += Math.max((p.montant||0)-(p.capRemb||0),0); });
  (DB.pe||[]).forEach(function(a){ classeActu.pe += (a.parts||0)*(a.prixActuel||0); });
  if (DB.or && DB.or > 0) classeActu.or += DB.or;
 
- var totalActuClasses = classeActu.etf + classeActu.scpi + classeActu.crowd + classeActu.or + classeActu.pe + classeActu.fonds;
+ var totalActuClasses = classeActu.etf + classeActu.scpi + classeActu.crowd + classeActu.or + classeActu.pe;
 
- var CLASSES_CIBLES = { etf:pctActions, scpi:pctSCPI, crowd:pctCrowd, or:pctOr, pe:pctPE, fonds:pctFonds };
- var CLASSES_NOMS = ['etf','scpi','crowd','or','pe','fonds'];
+ var CLASSES_CIBLES = { etf:pctActions, scpi:pctSCPI, crowd:pctCrowd, or:pctOr, pe:pctPE };
+ var CLASSES_NOMS = ['etf','scpi','crowd','or','pe'];
 
  var classeEcarts = {}, classeScores = {}, totalClasseScores = 0;
  CLASSES_NOMS.forEach(function(cl){
@@ -2513,7 +2490,7 @@ function renderInvest() {
  var mTech = mETF * pctsMois['Tech'];
  var mEmerg = mETF * pctsMois['Émergents'];
 
- var CLASSES_LABELS = { etf:'ETF Actions', scpi:'SCPI (AV)', crowd:'Crowdfunding', or:'Matières prem.', pe:'Private Equity', fonds:'Fonds euros' };
+ var CLASSES_LABELS = { etf:'ETF Actions', scpi:'SCPI (AV)', crowd:'Crowdfunding', or:'Matières prem.', pe:'Private Equity' };
  var CLASSES_COLORS = { etf:'var(--blue)', scpi:'var(--purple)', crowd:'var(--green)', or:'var(--yellow)', pe:'var(--orange)' };
  var classesHTML =
  '<table style="width:100%;font-size:11px;border-collapse:collapse">'+
@@ -2584,54 +2561,24 @@ function renderInvest() {
  var mPEA = (rMonde.reporter?0:rMonde.montantReel) + (rEmerg.reporter?0:rEmerg.montantReel) + mPE;
  var mCTO = mOr + mTech;
 
+ var mFondsFlo2 = versementLivretA > 0 ? versementLivretA / 4 : 0;
+ var mAVFloBrut = mSCPI + mFondsFlo2; // total des deux sources (min 100€ s'applique à l'ensemble)
+ var mAVFloCumul = mAVFloBrut + (reports['avflo'] || 0);
+ var mAVFlo = mAVFloCumul >= 100 ? mAVFloCumul : 0;
+ var mAVFloSCPI = mAVFlo / 2;
+ var mAVFloFonds = mAVFlo / 2;
+ var mAVFloNote = mAVFloCumul < 100
+ ? 'Reporter (cumul '+fmt(mAVFloCumul)+' < 100 min, encore '+fmt(100-mAVFloCumul)+' manquants)'
+ : 'SCPI '+fmt(mAVFloSCPI)+' + Fond euros '+fmt(mAVFloFonds)+(reports['avflo']?' (dont '+fmt(reports['avflo'])+' reportes)':'');
+ if (mAVFlo > 0) { DB.investReports = DB.investReports || {}; DB.investReports[m] = DB.investReports[m] || {}; delete DB.investReports[m]['avflo']; }
+
  var splitScpi = DB.splitAVScpi != null ? DB.splitAVScpi/100 : 0.70;
  var splitFonds = 1 - splitScpi;
 
- // Rééquilibrage actif 50/50 entre Spirit 2 et Avenir 2
- // On calcule la valeur SCPI et fonds euros actuelle dans chaque contrat
- function valContrat(key, typeFilter) {
- return (DB.av[key]||[]).reduce(function(s,l){
- if (typeFilter === 'scpi' && (l.type==='scpi'||l.type==='etf')) return s+(l.parts||0)*(l.prixActuel||0);
- if (typeFilter === 'fonds' && l.type==='fonds') return s+(l.prixActuel||0);
- return s;
- }, 0);
- }
- var vScpiSpirit = valContrat('spirit2','scpi');
- var vScpiAvenir = valContrat('avenir2','scpi');
- var vFondsSpirit = valContrat('spirit2','fonds');
- var vFondsAvenir = valContrat('avenir2','fonds');
-
- // Répartition SCPI : orienter vers le contrat le plus sous-pondéré
- var totalScpiActu = vScpiSpirit + vScpiAvenir;
- var scoreScpiSpirit = Math.max(0, totalScpiActu * 0.5 - vScpiSpirit); // manque Spirit
- var scoreScpiAvenir = Math.max(0, totalScpiActu * 0.5 - vScpiAvenir); // manque Avenir
- var totalScoreScpi = scoreScpiSpirit + scoreScpiAvenir;
- var pctScpiSpirit = totalScoreScpi < 0.01 ? 0.5 : scoreScpiSpirit / totalScoreScpi;
- var pctScpiAvenir = 1 - pctScpiSpirit;
-
- // Répartition fonds euros : idem
- var totalFondsActu = vFondsSpirit + vFondsAvenir;
- var scoreFondsSpirit = Math.max(0, totalFondsActu * 0.5 - vFondsSpirit);
- var scoreFondsAvenir = Math.max(0, totalFondsActu * 0.5 - vFondsAvenir);
- var totalScoreFonds = scoreFondsSpirit + scoreFondsAvenir;
- var pctFondsSpirit = totalScoreFonds < 0.01 ? 0.5 : scoreFondsSpirit / totalScoreFonds;
- var pctFondsAvenir = 1 - pctFondsSpirit;
-
- var mFondsTotalAV = versementLivretA > 0 ? versementLivretA / 2 : 0; // budget fonds euros total (1/2 du livret A)
- var mScpiSpirit = mSCPI * pctScpiSpirit;
- var mScpiAvenir = mSCPI * pctScpiAvenir;
- var mFondsSpirit = mFondsTotalAV * pctFondsSpirit;
- var mFondsAvenir = mFondsTotalAV * pctFondsAvenir;
-
- var mAVFloBrut = mScpiSpirit + mFondsSpirit;
- var mAVFloCumul = mAVFloBrut + (reports['avflo'] || 0);
- var mAVFlo = mAVFloCumul >= 100 ? mAVFloCumul : 0;
- var mAVFloNote = mAVFloCumul < 100
- ? 'Reporter (cumul '+fmt(mAVFloCumul)+' < 100 min, encore '+fmt(100-mAVFloCumul)+' manquants)'
- : 'SCPI '+fmt(mScpiSpirit)+'€ + Fonds €'+fmt(mFondsSpirit)+'€'+(reports['avflo']?' (dont '+fmt(reports['avflo'])+' reportés)':'');
- if (mAVFlo > 0) { DB.investReports = DB.investReports || {}; DB.investReports[m] = DB.investReports[m] || {}; delete DB.investReports[m]['avflo']; }
-
- var mAVKarine = mScpiAvenir + mFondsAvenir;
+ var mAVKarineBrut = budget * pctSCPI / 2 + (versementLivretA > 0 ? versementLivretA / 4 : 0);
+ var mAVKarineSCPI = (budget * pctSCPI / 2) * splitScpi;
+ var mAVKarineFonds = (budget * pctSCPI / 2) * splitFonds + (versementLivretA > 0 ? versementLivretA / 4 : 0);
+ var mAVKarine = mAVKarineBrut;
 
  var mAVFloSCPI2 = mAVFlo * splitScpi;
  var mAVFloFonds2 = mAVFlo * splitFonds;
@@ -2701,7 +2648,7 @@ function renderInvest() {
  if (r.reporter) {
  lignesPEA.push({ label:label, mt:0, note:'⏳ Reporter — cumul '+fmt(r.report)+(prix?' (part: '+fmt2(prix)+')':''), warn:true });
  } else {
- lignesPEA.push({ label:label, mt:r.montantReel, note:'x '+r.parts+(prix?' @ '+fmt2(prix):'')+(r.report>0?' +'+fmt(r.report)+' reste':'') });
+ lignesPEA.push({ label:label, mt:r.montantReel, note:'× '+r.parts+(prix?' @ '+fmt2(prix):'')+(r.report>0?' +'+fmt(r.report)+' reste':'') });
  }
  }
  ajouterLigneETF('ETF Monde (MSCI World)', rMonde, mMonde, prixMonde);
@@ -2714,10 +2661,8 @@ function renderInvest() {
  { label:'ETF Tech (Xtrackers)', mt:mTech, note: prixTech>0 ? 'part: '+fmt2(prixTech) : '' },
  ]});
 
- // Répartition fixe AV :
- // Spirit 2 (Flo)   : SCPI → Iroko Zen (50% budget SCPI total), Fonds € → Fond Euro Nouvelle Génération
- // Avenir 2 (Karine): SCPI → Transition Europe (50% budget SCPI total), Fonds € → Suravenir Opportunités 2 uniquement
- function lignesDynamiquesAV(contratKey, montantTotal, bonusSécurité, mtScpi, mtFonds) {
+ // Répartition dynamique des AV avec rééquilibrage vers les cibles (splitScpi depuis Stratégie)
+ function lignesDynamiquesAV(contratKey, montantTotal, bonusSécurité) {
  var lignes = [];
  var produitsAV = (DB.av[contratKey] || []);
  if (produitsAV.length === 0) {
@@ -2727,58 +2672,51 @@ function renderInvest() {
  if (bonusSécurité > 0) lignes.push({ label:'Fond euros (sécurité)', mt:bonusSécurité, note:'1/4 budget sécurité' });
  return lignes;
  }
- mtScpi = mtScpi || 0;
- mtFonds = mtFonds || 0;
-
- // Calcul valeur totale SCPI et fonds des deux contrats pour afficher % réel vs cible 50%
- var vScpiTot = vScpiSpirit + vScpiAvenir;
- var vFondsTot = vFondsSpirit + vFondsAvenir;
-
- if (contratKey === 'spirit2') {
- // SCPI : Iroko Zen
- var iroko = produitsAV.find(function(l){ return l.type==='scpi'; });
- if (iroko) {
- var pctReelScpiS = vScpiTot > 0 ? Math.round(vScpiSpirit/vScpiTot*100) : 0;
- lignes.push({ label: iroko.nom+' (SCPI)', mt: mtScpi, note: pctReelScpiS+'% réel · cible 50%' });
- } else if (mtScpi > 0) lignes.push({ label:'SCPI (aucun produit)', mt:0, note:'Ajouter une SCPI dans Spirit 2', warn:true });
- // Fonds € : Fond Euro Nouvelle Génération
- var fng = produitsAV.find(function(l){ return l.type==='fonds' && l.nom && l.nom.toLowerCase().indexOf('nouvelle') >= 0; });
- if (!fng) fng = produitsAV.find(function(l){ return l.type==='fonds'; });
- if (fng) {
- var pctReelFondsS = vFondsTot > 0 ? Math.round(vFondsSpirit/vFondsTot*100) : 0;
- lignes.push({ label: fng.nom+' (Fonds €)', mt: mtFonds, note: pctReelFondsS+'% réel · cible 50%' });
- } else if (mtFonds > 0) lignes.push({ label:'Fond euros (aucun produit)', mt:0, note:'Ajouter un fond euros dans Spirit 2', warn:true });
-
- } else {
- // Avenir 2 : Transition Europe
- var te = produitsAV.find(function(l){ return l.type==='scpi'; });
- if (te) {
- var pctReelScpiA = vScpiTot > 0 ? Math.round(vScpiAvenir/vScpiTot*100) : 0;
- lignes.push({ label: te.nom+' (SCPI)', mt: mtScpi, note: pctReelScpiA+'% réel · cible 50%' });
- } else if (mtScpi > 0) lignes.push({ label:'SCPI (aucun produit)', mt:0, note:'Ajouter une SCPI dans Avenir 2', warn:true });
- // Fonds € : Suravenir Opportunités 2 uniquement
- var suro = produitsAV.find(function(l){ return l.type==='fonds' && l.nom && l.nom.toLowerCase().indexOf('opportunit') >= 0; });
- if (!suro) suro = produitsAV.find(function(l){ return l.type==='fonds'; });
- if (suro) {
- var pctReelFondsA = vFondsTot > 0 ? Math.round(vFondsAvenir/vFondsTot*100) : 0;
- lignes.push({ label: suro.nom+' (Fonds €)', mt: mtFonds, note: pctReelFondsA+'% réel · cible 50%' });
- // Alerte fonds à solder
- var autresFonds = produitsAV.filter(function(l){ return l.type==='fonds' && l !== suro && (l.prixActuel||0) > 0; });
- autresFonds.forEach(function(l){
- lignes.push({ label: '⚠ Solder : '+l.nom, mt:0, note:'Arbitrer vers Suravenir Opportunités 2', warn:true });
+ var cibleScpi = splitScpi;
+ var cibleFonds = splitFonds;
+ var valScpi = 0, valFonds = 0, valTotal = 0;
+ produitsAV.forEach(function(l) {
+ var v = l.type === 'fonds' ? (l.prixActuel||0) : (l.parts||0)*(l.prixActuel||0);
+ if (l.type === 'scpi' || l.type === 'etf') valScpi += v; else valFonds += v;
+ valTotal += v;
  });
- } else if (mtFonds > 0) lignes.push({ label:'Fond euros (aucun produit)', mt:0, note:'Ajouter Suravenir Opportunités 2 dans Avenir 2', warn:true });
+ var poidsScpiActu = valTotal > 0 ? valScpi/valTotal : cibleScpi;
+ var poidsFondsActu = valTotal > 0 ? valFonds/valTotal : cibleFonds;
+ var scoreScpi = Math.max(0, cibleScpi - poidsScpiActu);
+ var scoreFonds = Math.max(0, cibleFonds - poidsFondsActu);
+ var totalScores = scoreScpi + scoreFonds;
+ var pctScpiMois = totalScores < 0.001 ? cibleScpi : scoreScpi/totalScores;
+ var pctFondsMois = totalScores < 0.001 ? cibleFonds : scoreFonds/totalScores;
+ var mtScpi = montantTotal * pctScpiMois;
+ var mtFonds = montantTotal * pctFondsMois;
+ var produitsScpi = produitsAV.filter(function(l){ return l.type==='scpi'||l.type==='etf'; });
+ var produitsFonds = produitsAV.filter(function(l){ return l.type==='fonds'; });
+ function repartirProduits(prods, montant, cibleType) {
+ var valG = 0;
+ prods.forEach(function(l){ valG += l.type==='fonds'?(l.prixActuel||0):(l.parts||0)*(l.prixActuel||0); });
+ prods.forEach(function(l) {
+ var v = l.type==='fonds'?(l.prixActuel||0):(l.parts||0)*(l.prixActuel||0);
+ var poids = valG > 0 ? v/valG : 1/prods.length;
+ var mt = montant * poids;
+ var cibleProd = prods.length > 0 ? Math.round(cibleType/prods.length*100) : 0;
+ var poidsReel = valTotal > 0 ? Math.round(v/valTotal*100) : 0;
+ var typeLabel = l.type==='etf'?'ETF':l.type==='scpi'?'SCPI':l.type==='fonds'?'Fonds €':(l.type||'');
+ lignes.push({ label: l.nom+' ('+typeLabel+')', mt: mt, note: poidsReel+'% réel · cible '+cibleProd+'%' });
+ });
  }
-
+ if (produitsScpi.length > 0) repartirProduits(produitsScpi, mtScpi, cibleScpi);
+ else if (mtScpi > 0) lignes.push({ label:'SCPI (aucun produit)', mt:0, note:'Ajouter un produit SCPI dans ce contrat', warn:true });
+ if (produitsFonds.length > 0) repartirProduits(produitsFonds, mtFonds, cibleFonds);
+ else if (mtFonds > 0) lignes.push({ label:'Fond euros (aucun produit)', mt:0, note:'Ajouter un fond euros dans ce contrat', warn:true });
  if (bonusSécurité > 0) lignes.push({ label:'Fond euros (sécurité)', mt:bonusSécurité, note:'1/4 budget sécurité' });
  return lignes;
  }
 
- var lignesAV1 = lignesDynamiquesAV('spirit2', mAVFlo, 0, mScpiSpirit, mFondsSpirit);
- blocs.push({ nom:labelAV1(), couleur:'var(--purple)', total:mAVFlo, lignes:lignesAV1 });
+ var lignesAV1 = lignesDynamiquesAV('avenir2', mAVFlo, versementLivretA > 0 ? versementLivretA/4 : 0);
+ blocs.push({ nom:labelAV1(), couleur:'var(--purple)', total:mAVFlo+(versementLivretA>0?versementLivretA/4:0), lignes:lignesAV1 });
 
- var lignesAV2 = lignesDynamiquesAV('avenir2', mAVKarine, 0, mScpiAvenir, mFondsAvenir);
- blocs.push({ nom:labelAV2(), couleur:'var(--purple)', total:mAVKarine, lignes:lignesAV2 });
+ var lignesAV2 = lignesDynamiquesAV('spirit2', mAVKarine, versementLivretA > 0 ? versementLivretA/4 : 0);
+ blocs.push({ nom:labelAV2(), couleur:'var(--purple)', total:mAVKarine+(versementLivretA>0?versementLivretA/4:0), lignes:lignesAV2 });
 
  blocs.push({ nom:'La Première Brique', couleur:'var(--green)', total:mCrowd, lignes:[
  { label:'Crowdfunding immobilier', mt:mCrowd, note:'' }
@@ -2831,25 +2769,25 @@ function renderInvest() {
    var _soldeFonds = _fondEuros.prixActuel || 0;
    var _coulArb = _montantArb > 0 ? 'var(--orange)' : 'var(--dim)';
    var _msgArb = _montantArb > 0
-     ? _nbPartsArb + ' part' + (_nbPartsArb > 1 ? 's' : '') + ' x ' + fmt2(_prixPartTE) + ' = ' + fmt(_montantArb) + ' (prix net 97,5%)'
-     : 'Plafond 10% atteint - impossible d\'arbitrer davantage';
+     ? _nbPartsArb + ' part' + (_nbPartsArb > 1 ? 's' : '') + ' × ' + fmt2(_prixPartTE) + ' = ' + fmt(_montantArb) + ' (prix net 97,5%)'
+     : 'Plafond 10% atteint — impossible d\'arbitrer davantage';
    envHTML += '<div style="margin-bottom:12px;border:1px solid var(--orange);border-radius:8px;overflow:hidden">'+
      '<div style="background:rgba(249,115,22,0.1);padding:8px 12px;display:flex;justify-content:space-between;align-items:center">'+
-     '<span style="font-weight:700;color:var(--orange);font-size:12px">Arbitrage conseille - Avenir 2</span>'+
-     '<span style="font-size:10px;color:var(--dim)">Encours contrat : '+fmt(_encours)+'</span>'+
+     '<span style="font-weight:700;color:var(--orange);font-size:12px">⇔ Arbitrage conseillé — Avenir 2</span>'+
+     '<span style="font-size:10px;color:var(--dim)">Encours contrat : '+fmt(_encours)+'</span>'+
      '</div>'+
      '<div style="display:flex;align-items:center;padding:8px 12px;border-top:1px solid rgba(249,115,22,0.2)">'+
-     '<span style="flex:1;font-size:11px">[V] Vendre - '+(_fondEuros.nom||'Fonds euros')+'</span>'+
-     '<span style="font-size:10px;color:var(--dim);margin-right:12px">solde : '+fmt(_soldeFonds)+'</span>'+
+     '<span style="flex:1;font-size:11px">🔴 Vendre — '+(_fondEuros.nom||'Fonds euros')+'</span>'+
+     '<span style="font-size:10px;color:var(--dim);margin-right:12px">solde : '+fmt(_soldeFonds)+'</span>'+
      '<span style="font-size:12px;font-weight:700;color:var(--orange)">'+fmt(_montantArb)+'</span>'+
      '</div>'+
      '<div style="display:flex;align-items:center;padding:8px 12px;border-top:1px solid rgba(249,115,22,0.2)">'+
-     '<span style="flex:1;font-size:11px">[A] Acheter - SCPI Transition Europe</span>'+
+     '<span style="flex:1;font-size:11px">🟢 Acheter — SCPI Transition Europe</span>'+
      '<span style="font-size:10px;color:var(--dim);margin-right:12px">'+_msgArb+'</span>'+
      '<span style="font-size:12px;font-weight:700;color:'+_coulArb+'">'+fmt(_montantArb)+'</span>'+
      '</div>'+
      '<div style="padding:6px 12px;border-top:1px solid rgba(249,115,22,0.2);font-size:10px;color:var(--dim)">'+
-     'Plafond 10% encours : '+fmt(_plafondTE)+'  - deja investi : '+fmt(_valTE)+'  - marge : '+fmt(_margeTE)+
+     'Plafond 10% encours : '+fmt(_plafondTE)+' · déjà investi : '+fmt(_valTE)+' · marge : '+fmt(_margeTE)+
      '</div>'+
      '</div>';
  }
@@ -3671,7 +3609,7 @@ function renderTransmission() {
  +'<div class="panel"><div class="panel-title c-red">⚠️ Sans optimisation</div>'
  +'<div style="font-size:28px;font-weight:800;color:var(--red);margin:8px 0">'+fmt(droitsSansOptim)+'</div>'
  +'<div style="font-size:11px;color:var(--muted)">'
- +(nbEnfants>0?nbEnfants+' enfant(s) x '+fmt(partParEnfant)+' = taxable '+fmt(baseImposParEnfant)+' chacun':'Base taxable : '+fmt(baseImposParEnfant))
+ +(nbEnfants>0?nbEnfants+' enfant(s) × '+fmt(partParEnfant)+' = taxable '+fmt(baseImposParEnfant)+' chacun':'Base taxable : '+fmt(baseImposParEnfant))
  +'</div></div>'
  +'<div class="panel"><div class="panel-title c-green">✅ Avec optimisation</div>'
  +'<div style="font-size:28px;font-weight:800;color:var(--green);margin:8px 0">'+fmt(droitsAvecOptim)+'</div>'
@@ -4791,7 +4729,7 @@ function arbRenderAchats() {
  var showParts = isScpiEtf && !isNew;
  html += '<div style="margin-bottom:8px;padding:8px;background:rgba(0,0,0,0.2);border-radius:6px">'+
  '<div style="display:grid;grid-template-columns:1fr'+(showParts?' 90px':'')+' 90px 28px;gap:6px;align-items:center;margin-bottom:'+(isNew?'6px':'0')+'">'+
- '<select data-ai="'+i+'" onchange="_arbAchats['+i+'].nom=this.value;_arbAchats['+i+'].parts=\x27\x27;arbRenderAchats()">'+arbOptionsAchat(contrat, a.nom)+'</select>'+
+ '<select data-ai="'+i+'" onchange="_arbAchats['+i+'].nom=this.value;_arbAchats['+i+'].parts='';arbRenderAchats()">'+arbOptionsAchat(contrat, a.nom)+'</select>'+
  (showParts ? '<input type="number" step="0.0001" placeholder="Nb parts" value="'+(a.parts||'')+'" style="font-size:11px" title="Nombre de parts achetees" oninput="_arbAchats['+i+'].parts=this.value;arbMajTotaux()">' : '')+
  '<input type="number" step="0.01" placeholder="'+prixLabel+'" value="'+(a.prix||'')+'" style="font-size:11px" title="'+prixLabel+'" oninput="_arbAchats['+i+'].prix=this.value;arbMajTotaux()">'+
  '<button class="btn btn-red btn-sm" style="padding:0 6px" onclick="_arbAchats.splice('+i+',1);arbRenderAchats();arbMajTotaux()">x</button>'+
@@ -4932,7 +4870,7 @@ setTimeout(function() {
  <div class="frow"><label>Solde actuel (€)</label>
  <input type="number" id="livreta-input" step="0.01" placeholder="ex: 5000">
  </div>
- <div class="frow"><label>Cible personnalisée (€) <span style="color:var(--muted);font-size:10px">vide = auto 3x dép.</span></label>
+ <div class="frow"><label>Cible personnalisée (€) <span style="color:var(--muted);font-size:10px">vide = auto 3× dép.</span></label>
  <input type="number" id="livreta-cible-input" step="100" placeholder="calculée automatiquement">
  </div>
  <div class="modal-btns">
