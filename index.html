@@ -834,7 +834,6 @@ function validerImport() {
  if (parsed.enveloppes !== undefined) DB.enveloppes = parsed.enveloppes;
  if (parsed.dateNaissance !== undefined) DB.dateNaissance = parsed.dateNaissance;
  if (parsed.tauxInvest !== undefined) DB.tauxInvest = parsed.tauxInvest;
- if (parsed.splitAVScpi !== undefined) DB.splitAVScpi = parsed.splitAVScpi;
  if (parsed.cibleLivretA !== undefined) DB.cibleLivretA = parsed.cibleLivretA;
  if (parsed.tickers) DB.tickers = parsed.tickers;
  if (parsed.fiscal) DB.fiscal = parsed.fiscal;
@@ -2139,17 +2138,19 @@ function calcCibles() {
  var pctActions = Math.min(0.90, Math.max(0.314, (110 - age) / 100));
  var pctSecurite = 1 - pctActions;
  var pctSCPI = pctSecurite * 0.50;
+ var pctFonds = pctSecurite * 0.03;
  var pctCrowd = pctSecurite * 0.314;
  var pctPE = pctSecurite * 0.10;
  var pctOr = pctSecurite * 0.10;
  if (DB.strategiePcts) {
  if (DB.strategiePcts.etf) pctActions = DB.strategiePcts.etf;
  if (DB.strategiePcts.scpi) pctSCPI = DB.strategiePcts.scpi;
+ if (DB.strategiePcts.fonds) pctFonds = DB.strategiePcts.fonds;
  if (DB.strategiePcts.crowd) pctCrowd = DB.strategiePcts.crowd;
  if (DB.strategiePcts.pe) pctPE = DB.strategiePcts.pe;
  if (DB.strategiePcts.or) pctOr = DB.strategiePcts.or;
  }
- return { age:age, pctActions:pctActions, pctSCPI:pctSCPI, pctCrowd:pctCrowd, pctPE:pctPE, pctOr:pctOr };
+ return { age:age, pctActions:pctActions, pctSCPI:pctSCPI, pctFonds:pctFonds, pctCrowd:pctCrowd, pctPE:pctPE, pctOr:pctOr };
 }
 
 function calcAV(l) {
@@ -2363,6 +2364,7 @@ function renderInvest() {
  var age = _c.age;
  var pctActions = _c.pctActions;
  var pctSCPI = _c.pctSCPI;
+ var pctFonds = _c.pctFonds;
  var pctCrowd = _c.pctCrowd;
  var pctPE = _c.pctPE;
  var pctOr = _c.pctOr;
@@ -2436,18 +2438,19 @@ function renderInvest() {
  }
 
  var mETFtotal = budget * pctsMoisClasses['etf'];
- var splitScpiKpi = DB.splitAVScpi != null ? DB.splitAVScpi : 70;
- var splitFondsKpi = 100 - splitScpiKpi;
+ var pctStrAVKpi = pctSCPI + pctFonds;
+ var splitKarinePct = pctStrAVKpi > 0 ? Math.round(pctSCPI/pctStrAVKpi*100) : 91;
  document.getElementById('invest-kpis').innerHTML=
  '<div class="kpi"><div class="kl">CA '+MOIS[m]+'</div><div class="kv c-blue">'+fmt(CA)+'</div></div>'+
  '<div class="kpi"><div class="kl">À investir (<span id="taux-invest-val">'+(DB.tauxInvest||6)+'</span>% CA) <button class="btn btn-ghost" style="font-size:9px;padding:1px 5px;margin-left:4px" onclick="majTauxInvest()">✏️</button></div><div class="kv c-purple">'+fmt(budgetBrut)+'</div></div>'+
  '<div class="kpi"><div class="kl">'+(DB.strategiePcts ? 'Stratégie personnalisée' : 'Règle 110−âge ('+age+' ans)')+'</div><div class="kv c-blue">'+Math.round(pctActions*100)+'% actions · '+Math.round((1-pctActions)*100)+'% sécurité</div></div>'+
  '<div class="kpi"><div class="kl">Budget net (hors Livret A)</div><div class="kv c-green">'+fmt(budget)+'</div></div>'+
- '<div class="kpi"><div class="kl">Split AV (SCPI/Fond €) <button class="btn btn-ghost" style="font-size:9px;padding:1px 5px;margin-left:4px" onclick="majSplitAV()">✏️</button></div><div class="kv c-muted">'+splitScpiKpi+'% / '+splitFondsKpi+'%</div></div>';
+ '<div class="kpi"><div class="kl">AV Karine — Split stratégie (SCPI/Fond €)</div><div class="kv c-muted">'+splitKarinePct+'% / '+(100-splitKarinePct)+'%</div></div>';
 
  var mETF = budget * pctsMoisClasses['etf'];
  var mCrowd = budget * pctsMoisClasses['crowd'];
  var mSCPI = budget * pctsMoisClasses['scpi'];
+ var mFondsTotal = budget * pctFonds; // budget fonds euros total (réparti 50/50 entre les 2 AV)
  var mOr = budget * pctsMoisClasses['or'];
  var mPE = budget * pctsMoisClasses['pe'];
 
@@ -2556,27 +2559,26 @@ function renderInvest() {
  var mPEA = (rMonde.reporter?0:rMonde.montantReel) + (rEmerg.reporter?0:rEmerg.montantReel) + mPE;
  var mCTO = mOr + mTech;
 
- var mFondsFlo2 = versementLivretA > 0 ? versementLivretA / 4 : 0;
- var mAVFloBrut = mSCPI + mFondsFlo2; // total des deux sources (min 100€ s'applique à l'ensemble)
+ // AV Flo (Avenir 2) : 50/50 imposé par l'assurance
+ // Budget = moitié du SCPI stratégie + moitié du Fonds euros stratégie
+ var mAVFloSCPI = mSCPI / 2;
+ var mAVFloFonds = mFondsTotal / 2;
+ var mAVFloBrut = mAVFloSCPI + mAVFloFonds + (versementLivretA > 0 ? versementLivretA / 4 : 0);
  var mAVFloCumul = mAVFloBrut + (reports['avflo'] || 0);
  var mAVFlo = mAVFloCumul >= 100 ? mAVFloCumul : 0;
- var mAVFloSCPI = mAVFlo / 2;
- var mAVFloFonds = mAVFlo / 2;
+ // Recalcul après report pour garder le bon split
+ var mAVFloSCPIFinal = mAVFlo > 0 ? mAVFlo / 2 : 0;
+ var mAVFloFondsFinal = mAVFlo > 0 ? mAVFlo / 2 : 0;
  var mAVFloNote = mAVFloCumul < 100
  ? 'Reporter (cumul '+fmt(mAVFloCumul)+' < 100 min, encore '+fmt(100-mAVFloCumul)+' manquants)'
- : 'SCPI '+fmt(mAVFloSCPI)+' + Fond euros '+fmt(mAVFloFonds)+(reports['avflo']?' (dont '+fmt(reports['avflo'])+' reportes)':'');
+ : 'SCPI '+fmt(mAVFloSCPIFinal)+' + Fond euros '+fmt(mAVFloFondsFinal)+(reports['avflo']?' (dont '+fmt(reports['avflo'])+' reportes)':'');
  if (mAVFlo > 0) { DB.investReports = DB.investReports || {}; DB.investReports[m] = DB.investReports[m] || {}; delete DB.investReports[m]['avflo']; }
 
- var splitScpi = DB.splitAVScpi != null ? DB.splitAVScpi/100 : 0.70;
- var splitFonds = 1 - splitScpi;
-
- var mAVKarineBrut = budget * pctSCPI / 2 + (versementLivretA > 0 ? versementLivretA / 4 : 0);
- var mAVKarineSCPI = (budget * pctSCPI / 2) * splitScpi;
- var mAVKarineFonds = (budget * pctSCPI / 2) * splitFonds + (versementLivretA > 0 ? versementLivretA / 4 : 0);
- var mAVKarine = mAVKarineBrut;
-
- var mAVFloSCPI2 = mAVFlo * splitScpi;
- var mAVFloFonds2 = mAVFlo * splitFonds;
+ // AV Karine (Spirit 2) : split selon stratégie (SCPI% / Fonds%)
+ // Budget = moitié du SCPI stratégie + moitié du Fonds euros stratégie
+ var mAVKarineSCPI = mSCPI / 2;
+ var mAVKarineFonds = mFondsTotal / 2 + (versementLivretA > 0 ? versementLivretA / 4 : 0);
+ var mAVKarine = mAVKarineSCPI + mAVKarineFonds;
 
  var mLA2 = versementLivretA > 0 ? versementLivretA / 2 : 0;
  var totalReel = mPEA + mCTO + mAVFlo + mAVKarine + mCrowd + mLA2;
@@ -2656,8 +2658,9 @@ function renderInvest() {
  { label:'ETF Tech (Xtrackers)', mt:mTech, note: prixTech>0 ? 'part: '+fmt2(prixTech) : '' },
  ]});
 
- // Répartition dynamique des AV avec rééquilibrage vers les cibles (splitScpi depuis Stratégie)
- function lignesDynamiquesAV(contratKey, montantTotal, bonusSécurité) {
+ // Répartition dynamique des AV avec rééquilibrage vers les cibles
+ // cibleScpiParam / cibleFondsParam : proportions cibles (ex: 0.5 / 0.5 pour AV Flo imposé)
+ function lignesDynamiquesAV(contratKey, montantTotal, bonusSécurité, cibleScpiParam, cibleFondsParam) {
  var lignes = [];
  var produitsAV = (DB.av[contratKey] || []);
  if (produitsAV.length === 0) {
@@ -2667,8 +2670,8 @@ function renderInvest() {
  if (bonusSécurité > 0) lignes.push({ label:'Fond euros (sécurité)', mt:bonusSécurité, note:'1/4 budget sécurité' });
  return lignes;
  }
- var cibleScpi = splitScpi;
- var cibleFonds = splitFonds;
+ var cibleScpi = cibleScpiParam !== undefined ? cibleScpiParam : 0.5;
+ var cibleFonds = cibleFondsParam !== undefined ? cibleFondsParam : 0.5;
  var valScpi = 0, valFonds = 0, valTotal = 0;
  produitsAV.forEach(function(l) {
  var v = l.type === 'fonds' ? (l.prixActuel||0) : (l.parts||0)*(l.prixActuel||0);
@@ -2707,10 +2710,15 @@ function renderInvest() {
  return lignes;
  }
 
- var lignesAV1 = lignesDynamiquesAV('avenir2', mAVFlo, versementLivretA > 0 ? versementLivretA/4 : 0);
+ // AV Flo : split 50/50 imposé par l'assurance
+ var lignesAV1 = lignesDynamiquesAV('avenir2', mAVFlo, versementLivretA > 0 ? versementLivretA/4 : 0, 0.5, 0.5);
  blocs.push({ nom:labelAV1(), couleur:'var(--purple)', total:mAVFlo+(versementLivretA>0?versementLivretA/4:0), lignes:lignesAV1 });
 
- var lignesAV2 = lignesDynamiquesAV('spirit2', mAVKarine, versementLivretA > 0 ? versementLivretA/4 : 0);
+ // AV Karine : split selon stratégie (SCPI% / Fonds%)
+ var pctStrAVKarine = pctSCPI + pctFonds;
+ var cibleScpiKarine = pctStrAVKarine > 0 ? pctSCPI / pctStrAVKarine : 0.5;
+ var cibleFondsKarine = 1 - cibleScpiKarine;
+ var lignesAV2 = lignesDynamiquesAV('spirit2', mAVKarine, versementLivretA > 0 ? versementLivretA/4 : 0, cibleScpiKarine, cibleFondsKarine);
  blocs.push({ nom:labelAV2(), couleur:'var(--purple)', total:mAVKarine+(versementLivretA>0?versementLivretA/4:0), lignes:lignesAV2 });
 
  blocs.push({ nom:'La Première Brique', couleur:'var(--green)', total:mCrowd, lignes:[
@@ -4468,17 +4476,6 @@ function majTauxInvest() {
  }
 }
 
-function majSplitAV() {
- var val = prompt('Part SCPI dans les AV (%, le reste = Fond euros) — défaut 70 :', DB.splitAVScpi != null ? DB.splitAVScpi : 70);
- if (val !== null && !isNaN(+val)) {
- var s = Math.min(100, Math.max(0, +val));
- DB.splitAVScpi = s;
- save();
- sauvegarderFirebase();
- renderInvest();
- toast('Split AV mis à jour : ' + s + '% SCPI / ' + (100-s) + '% Fond euros');
- }
-}
 
 function ouvrirParametres() {
  var env = DB.enveloppes || { bourse:true, av1:true, av2:true, crowd:true, pe:true, livretA:true };
