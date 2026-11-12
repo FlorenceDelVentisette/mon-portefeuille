@@ -1652,7 +1652,7 @@ function majPrixManuelAV(contrat, nom, prix) {
 function fetchStooq(ticker, cb) {
  var s = convertirTicker(ticker);
  if (!s) { cb(null); return; }
- var proxyUrl = '/yahoo-proxy?ticker=' + s;
+ var proxyUrl = 'https://yahoo-proxy.akoulinitcheff-florence.workers.dev/?ticker=' + s;
  fetch(proxyUrl)
  .then(function(r){ return r.json(); })
  .then(function(data) {
@@ -5094,4 +5094,3 @@ setTimeout(function() {
 
 </body>
 </html>
-
