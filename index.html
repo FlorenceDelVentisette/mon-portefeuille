@@ -24,8 +24,6 @@
 body { background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, sans-serif; font-size: 13px; min-height: 100vh; }
 
 
-
- 
 nav { background: var(--bg2); border-bottom: 1px solid var(--border); display: flex; align-items: center; height: 48px; padding: 0 16px; gap: 4px; position: sticky; top: 0; z-index: 100; overflow-x: auto; }
 .nav-brand { font-size: 14px; font-weight: 800; color: var(--purple); margin-right: 12px; white-space: nowrap; cursor: pointer; }
 .nav-btn { padding: 5px 12px; border-radius: 6px; border: none; background: none; color: var(--muted); font-size: 11px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: all 0.15s; }
@@ -331,7 +329,6 @@ input[type=range] { width: 100%; accent-color: var(--purple); cursor: pointer; d
  <div class="btns">
  <button class="btn btn-green btn-sm" onclick="ouvrirModalAV()">+ Achat / Mise à jour prix</button>
  <button class="btn btn-blue btn-sm" onclick="majPrixLiveAV()">💹 Prix live</button>
- <button class="btn btn-ghost btn-sm" onclick="renderAV()">🔄 Recalculer</button>
  <button class="btn btn-ghost btn-sm" onclick="recalculerFondsEuros()">🔧 Recalc. fonds €</button>
  <button class="btn btn-orange btn-sm" onclick="ouvrirModalArbitrageAV()">↔ Arbitrage</button>
  </div>
@@ -362,7 +359,6 @@ input[type=range] { width: 100%; accent-color: var(--purple); cursor: pointer; d
  <div class="grid5 mb12" id="crowd-kpis"></div>
  <div class="btns">
  <button class="btn btn-green btn-sm" onclick="ouvrirModalCrowd()">+ Nouveau projet</button>
- <button class="btn btn-ghost btn-sm" onclick="renderCrowd()">🔄 Recalculer</button>
  </div>
  <div class="panel mb12">
  <div class="tbl-wrap" id="crowd-tbl"></div>
@@ -380,7 +376,6 @@ input[type=range] { width: 100%; accent-color: var(--purple); cursor: pointer; d
  <div class="grid4 mb12" id="pe-kpis"></div>
  <div class="btns">
  <button class="btn btn-green btn-sm" onclick="ouvrirModalPE()">+ Nouvel achat</button>
- <button class="btn btn-ghost btn-sm" onclick="renderPE()">🔄 Recalculer</button>
  </div>
  <div class="panel">
  <div class="tbl-wrap" id="pe-tbl"></div>
