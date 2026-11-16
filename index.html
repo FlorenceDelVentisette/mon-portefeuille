@@ -2250,11 +2250,14 @@ function calcCrowd(p) {
 
 function renderCrowd() {
  var totInv=0, totIntNets=0, totVal=0, nbRetards=0, nbEnCours=0;
- DB.crowd.forEach(function(p){
+ var actifs=[], rembourses=[];
+ DB.crowd.forEach(function(p,i){
  var c=calcCrowd(p);
  totInv+=p.montant; totIntNets+=c.intNets; totVal+=c.valeurEco;
  if(c.retard) nbRetards++;
  else if(c.statut!=='Remboursé') nbEnCours++;
+ if(c.statut==='Remboursé') rembourses.push({p:p,c:c,i:i});
+ else actifs.push({p:p,c:c,i:i});
  });
  var gain=totVal-totInv;
 
@@ -2265,29 +2268,43 @@ function renderCrowd() {
  '<div class="kpi"><div class="kl">En cours</div><div class="kv c-blue">'+nbEnCours+'</div></div>'+
  '<div class="kpi"><div class="kl">En retard</div><div class="kv '+(nbRetards>0?'c-red':'c-muted')+'">'+nbRetards+'</div></div>';
 
- var h='<table><thead><tr><th>Projet</th><th>Date</th><th class="r">Montant</th><th>Durée</th><th>Type</th><th class="r">Taux</th><th>Remb.</th><th>Cap. remb.</th><th>Int. percus</th><th>Statut</th><th class="r">Valeur éco.</th><th></th></tr></thead><tbody>';
- DB.crowd.forEach(function(p,i){
- var c=calcCrowd(p);
- var sColor=c.retard?'var(--red)':c.statut==='Remboursé'?'var(--green)':c.statut==='Échéance proche'?'var(--yellow)':'var(--blue)';
- var joursStr=c.jours===null?'—':(c.jours<0?c.jours+' j':(c.jours<=30?'+'+c.jours+' j !':'+'+c.jours+' j'));
- h+='<tr style="'+(c.retard?'background:rgba(239,68,68,0.05)':c.statut==='Remboursé'?'background:rgba(16,185,129,0.05)':'')+'">'+
- '<td class="bold">'+p.nom+'</td>'+
- '<td class="c-muted">'+p.date+'</td>'+
- '<td class="r">'+fmt(p.montant)+'</td>'+
- '<td>'+p.duree+' m</td>'+
- '<td class="c-muted">'+p.type+'</td>'+
- '<td class="r">'+p.taux+'%</td>'+
- '<td class="c-muted">'+(c.dateRemb?c.dateRemb.toLocaleDateString('fr-FR'):'—')+'</td>'+
- '<td><input type="number" class="inp-sm" value="'+p.capRemb+'" onchange="DB.crowd['+i+'].capRemb=+this.value;renderCrowd();save()"></td>'+
- '<td><input type="number" class="inp-sm" value="'+p.intPercus+'" step="0.01" onchange="DB.crowd['+i+'].intPercus=+this.value;renderCrowd();save()"></td>'+
- '<td><span style="color:'+sColor+';font-weight:700;font-size:10px">'+c.statut+'</span><br><span class="c-dim" style="font-size:9px">'+joursStr+'</span></td>'+
- '<td class="r c-green bold">'+fmt2(c.valeurEco)+'</td>'+
- '<td style="display:flex;gap:4px">'+
- '<button class="btn btn-ghost btn-sm" onclick="ouvrirModalCrowd('+i+')" title="Modifier">✏️</button>'+
- '<button class="btn btn-red btn-sm" onclick="supprimerCrowd('+i+')" title="Supprimer">✕</button>'+
- '</td></tr>';
- });
+ function lignesCrowd(liste) {
+  var h='';
+  liste.forEach(function(item){
+   var p=item.p, c=item.c, i=item.i;
+   var sColor=c.retard?'var(--red)':c.statut==='Remboursé'?'var(--green)':c.statut==='Échéance proche'?'var(--yellow)':'var(--blue)';
+   var joursStr=c.jours===null?'—':(c.jours<0?c.jours+' j':(c.jours<=30?'+'+c.jours+' j !':'+'+c.jours+' j'));
+   h+='<tr style="'+(c.retard?'background:rgba(239,68,68,0.05)':c.statut==='Remboursé'?'background:rgba(16,185,129,0.05)':'')+'">'+
+   '<td class="bold">'+p.nom+'</td>'+
+   '<td class="c-muted">'+p.date+'</td>'+
+   '<td class="r">'+fmt(p.montant)+'</td>'+
+   '<td>'+p.duree+' m</td>'+
+   '<td class="c-muted">'+p.type+'</td>'+
+   '<td class="r">'+p.taux+'%</td>'+
+   '<td class="c-muted">'+(c.dateRemb?c.dateRemb.toLocaleDateString('fr-FR'):'—')+'</td>'+
+   '<td><input type="number" class="inp-sm" value="'+p.capRemb+'" onchange="DB.crowd['+i+'].capRemb=+this.value;renderCrowd();save()"></td>'+
+   '<td><input type="number" class="inp-sm" value="'+p.intPercus+'" step="0.01" onchange="DB.crowd['+i+'].intPercus=+this.value;renderCrowd();save()"></td>'+
+   '<td><span style="color:'+sColor+';font-weight:700;font-size:10px">'+c.statut+'</span><br><span class="c-dim" style="font-size:9px">'+joursStr+'</span></td>'+
+   '<td class="r c-green bold">'+fmt2(c.valeurEco)+'</td>'+
+   '<td style="display:flex;gap:4px">'+
+   '<button class="btn btn-ghost btn-sm" onclick="ouvrirModalCrowd('+i+')" title="Modifier">✏️</button>'+
+   '<button class="btn btn-red btn-sm" onclick="supprimerCrowd('+i+')" title="Supprimer">✕</button>'+
+   '</td></tr>';
+  });
+  return h;
+ }
+ var entete='<table><thead><tr><th>Projet</th><th>Date</th><th class="r">Montant</th><th>Durée</th><th>Type</th><th class="r">Taux</th><th>Remb.</th><th>Cap. remb.</th><th>Int. percus</th><th>Statut</th><th class="r">Valeur éco.</th><th></th></tr></thead><tbody>';
+ var h=entete+lignesCrowd(actifs);
  document.getElementById('crowd-tbl').innerHTML=h+'</tbody></table>';
+
+ // Tableau des projets remboursés
+ if(rembourses.length>0){
+  var hr=entete+lignesCrowd(rembourses);
+  document.getElementById('crowd-tbl').innerHTML+=
+   '<div style="margin-top:28px;padding-top:16px;border-top:1px solid var(--border)">'+
+   '<div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.05em;margin-bottom:8px;text-transform:uppercase">✅ Projets remboursés ('+rembourses.length+')</div>'+
+   hr+'</tbody></table></div>';
+ }
 
  var annees={};
  DB.crowd.forEach(function(p){
