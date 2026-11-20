@@ -3963,17 +3963,17 @@ function renderStrategie() {
  var pEpSec = Math.round(_cStrat2.pctEpargneSec * 100); // 3%
  // ETF = ce qui reste (100 - SCPI - Crowd - PE - Or - EpargneSec)
  var pETFtotal = 100 - pSCPI - pCrowd - pPE - pOr - pEpSec;
- var pPEA = Math.round(pETFtotal * 0.90); // 90% des ETF en PEA (hors Tech+Or en CTO)
- var pCTO = pETFtotal - pPEA + pOr;      // reste ETF + Or en CTO
+ var pPEA = Math.round(pETFtotal * 0.95); // 95% des ETF en PEA (Tech 5% en CTO)
+ var pCTO = pETFtotal - pPEA + pOr;      // 5% ETF Tech + Or en CTO
  // Répartition interne ETF (110-âge pour le total, sous-répartition fixe)
- var etfSousDetail = 'USA large caps 58% · Europe 24% · Émergents 14% · Small caps US 4%. Exonéré IR après 5 ans. Règle 110−âge : '+pA+'% actions.';
+ var etfSousDetail = 'USA large caps 55% · Europe 22% · Émergents 13% · Small caps US 5%. Exonéré IR après 5 ans. Règle 110−âge : '+pA+'% actions.';
  strategies.push({ rang:1, icon:'📈', nom:'ETF Actions — PEA', enveloppe:'PEA (Trade Republic)', detail:etfSousDetail, pct:pPEA, color:'var(--blue)', actif:'etf', sousRepartition:[
-  { label:'🇺🇸 USA large caps', pct:58 },
-  { label:'🇪🇺 Europe',         pct:24 },
-  { label:'🌏 Émergents',       pct:14 },
-  { label:'📉 Small caps US',   pct: 4 }
+  { label:'🇺🇸 USA large caps', pct:55 },
+  { label:'🇪🇺 Europe',         pct:22 },
+  { label:'🌏 Émergents',       pct:13 },
+  { label:'📉 Small caps US',   pct: 5 }
  ]});
- strategies.push({ rang:2, icon:'💻', nom:'ETF Tech + Or — CTO', enveloppe:'CTO (Trade Republic)', detail:'ETF Tech (IA) + Or/matières premières. Flat tax 31,4%. Votre Tech est déjà en CTO.', pct:pCTO, color:'var(--yellow)', actif:'cto' });
+ strategies.push({ rang:2, icon:'💻', nom:'ETF Tech + Or — CTO', enveloppe:'CTO (Trade Republic)', detail:'ETF Tech (IA) 5% + Or/matières premières 5%. Flat tax 31,4%.', pct:pCTO, color:'var(--yellow)', actif:'cto' });
  strategies.push({ rang:3, icon:'🏢', nom:'SCPI — '+scpiNPenv, enveloppe:scpiNPenv === 'AV' ? 'AV Spirit 2 (Linxea)' : 'Direct — min '+scpiMinDirect+'EUR', detail:'Décote 30-40%. Zéro fiscalité. '+scpiNPraison, pct:pSCPI, color:'var(--purple)', actif:'scpi', badge:scpiNPenv === 'AV' ? 'En AV' : 'En direct' });
  strategies.push({ rang:4, icon:'🏗️', nom:'Crowdfunding', enveloppe:'La Première Brique', detail:'Rendement 8-12% brut. Horizon 12-24 mois.', pct:pCrowd, color:'var(--green)', actif:'crowd' });
  strategies.push({ rang:5, icon:'💼', nom:'Private Equity', enveloppe:'Fonds PE', detail:'Horizon 5-10 ans. Rendement 10-15%.', pct:pPE, color:'var(--orange)', actif:'pe' });
