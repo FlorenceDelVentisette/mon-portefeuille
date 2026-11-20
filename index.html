@@ -860,6 +860,9 @@ function validerImport() {
  if (parsed.transAgesEnfants !== undefined) DB.transAgesEnfants = parsed.transAgesEnfants;
  if (parsed.strategieProfil !== undefined) DB.strategieProfil = parsed.strategieProfil;
  if (parsed.strategiePcts !== undefined) DB.strategiePcts = parsed.strategiePcts;
+ if (parsed.simulateur !== undefined) DB.simulateur = parsed.simulateur;
+ if (parsed.or !== undefined) DB.or = parsed.or;
+ if (parsed.crowdfunding !== undefined) DB.crowdfunding = parsed.crowdfunding;
  sauvegarder();
  sauvegarderFirebase();
  fermerImport();
@@ -958,6 +961,9 @@ function chargerFirebase() {
  if (parsed.transAgesEnfants !== undefined) DB.transAgesEnfants = parsed.transAgesEnfants;
  if (parsed.strategieProfil !== undefined) DB.strategieProfil = parsed.strategieProfil;
  if (parsed.strategiePcts !== undefined) DB.strategiePcts = parsed.strategiePcts;
+ if (parsed.simulateur !== undefined) DB.simulateur = parsed.simulateur;
+ if (parsed.or !== undefined) DB.or = parsed.or;
+ if (parsed.crowdfunding !== undefined) DB.crowdfunding = parsed.crowdfunding;
  }
  chargerDB();
  renderDashboard();
