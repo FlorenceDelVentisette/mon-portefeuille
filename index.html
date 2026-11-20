@@ -2053,7 +2053,7 @@ function renderMapSection(data, containerId, color) {
  });
  document.getElementById('rep-classes').innerHTML = hCl;
 
- var zonesReel = { Monde:0, USA:0, Europe:0, Tech:0, 'Émergents':0 };
+ var zonesReel = { 'USA large caps':0, 'Europe':0, 'Émergents':0, 'Small caps US':0, 'Tech':0, 'Monde':0, 'Non classé':0 };
  var totalETF = 0;
  Object.values(pos).forEach(function(p){
  var v = p.sommeLive||0; if (!v) return;
@@ -2071,12 +2071,15 @@ function renderMapSection(data, containerId, color) {
  }); });
 
  var zonesETF = [
- { nom:'Monde', reel:zonesReel['Monde'], cible:0.75, color:'var(--blue)' },
- { nom:'Émergents', reel:zonesReel['Émergents'], cible:0.20, color:'var(--green)' },
- { nom:'Tech', reel:zonesReel['Tech'], cible:0.05, color:'var(--orange)' },
- { nom:'USA', reel:zonesReel['USA'], cible:0, color:'var(--yellow)' },
- { nom:'Europe', reel:zonesReel['Europe'], cible:0, color:'var(--purple)' },
- ];
+ { nom:'🇺🇸 USA large caps', key:'USA large caps', cible:0.55, color:'var(--blue)' },
+ { nom:'🇪🇺 Europe',         key:'Europe',         cible:0.22, color:'var(--purple)' },
+ { nom:'🌏 Émergents',       key:'Émergents',       cible:0.13, color:'var(--green)' },
+ { nom:'📉 Small caps US',   key:'Small caps US',   cible:0.05, color:'var(--yellow)' },
+ { nom:'💻 Tech',            key:'Tech',            cible:0.05, color:'var(--orange)' },
+ { nom:'🌐 Monde (générique)',key:'Monde',          cible:0,    color:'var(--muted)' },
+ { nom:'❓ Non classé',      key:'Non classé',      cible:0,    color:'var(--dim)' },
+ ].filter(function(z){ return zonesReel[z.key] > 0 || z.cible > 0; });
+ zonesETF.forEach(function(z){ z.reel = zonesReel[z.key]||0; });
  var maxZ = Math.max.apply(null, zonesETF.map(function(z){ return Math.max(z.reel, totalETF*z.cible); })) || 1;
  var hZ = '<div style="font-size:9px;color:var(--dim);margin-bottom:8px;display:flex;gap:16px"><span>▓ Réel</span><span style="opacity:0.4">░ Cible</span></div>';
  zonesETF.forEach(function(z){
@@ -2135,22 +2138,28 @@ function calcCibles() {
  } else {
  age = DB.simulateur && DB.simulateur.age ? +DB.simulateur.age : 35;
  }
- var pctActions = Math.min(0.90, Math.max(0.314, (110 - age) / 100));
- var pctSecurite = 1 - pctActions;
- var pctSCPI = pctSecurite * 0.50;
- var pctFonds = pctSecurite * 0.03;
- var pctCrowd = pctSecurite * 0.314;
- var pctPE = pctSecurite * 0.10;
- var pctOr = pctSecurite * 0.10;
+ var pctActions = Math.min(0.90, Math.max(0.10, (110 - age) / 100));
+ // Ajustement selon tolérance au risque (±10%)
+ var risqueStrat = DB.strategieProfil ? DB.strategieProfil.risque : 'moyen';
+ if (risqueStrat === 'faible') pctActions = Math.max(0.10, pctActions - 0.10);
+ if (risqueStrat === 'eleve')  pctActions = Math.min(0.90, pctActions + 0.10);
+ // Pourcentages absolus (en % du patrimoine total)
+ var pctSCPI = 0.13;
+ var pctCrowd = 0.05;
+ var pctPE = 0.10;
+ var pctOr = 0.05;
+ var pctEpargneSec = 0.03; // Livret A + Fonds euros
+ var pctFonds = 0; // fonds euros dans les AV (hors épargne sécurité) — redéfini ci-dessous
  if (DB.strategiePcts) {
- if (DB.strategiePcts.etf) pctActions = DB.strategiePcts.etf;
- if (DB.strategiePcts.scpi) pctSCPI = DB.strategiePcts.scpi;
- if (DB.strategiePcts.fonds) pctFonds = DB.strategiePcts.fonds;
- if (DB.strategiePcts.crowd) pctCrowd = DB.strategiePcts.crowd;
- if (DB.strategiePcts.pe) pctPE = DB.strategiePcts.pe;
- if (DB.strategiePcts.or) pctOr = DB.strategiePcts.or;
+ if (DB.strategiePcts.etf != null) pctActions = DB.strategiePcts.etf;
+ if (DB.strategiePcts.scpi != null) pctSCPI = DB.strategiePcts.scpi;
+ if (DB.strategiePcts.fonds != null) pctFonds = DB.strategiePcts.fonds;
+ if (DB.strategiePcts.crowd != null) pctCrowd = DB.strategiePcts.crowd;
+ if (DB.strategiePcts.pe != null) pctPE = DB.strategiePcts.pe;
+ if (DB.strategiePcts.or != null) pctOr = DB.strategiePcts.or;
+ if (DB.strategiePcts.epargneSec != null) pctEpargneSec = DB.strategiePcts.epargneSec;
  }
- return { age:age, pctActions:pctActions, pctSCPI:pctSCPI, pctFonds:pctFonds, pctCrowd:pctCrowd, pctPE:pctPE, pctOr:pctOr };
+ return { age:age, pctActions:pctActions, pctSCPI:pctSCPI, pctFonds:pctFonds, pctCrowd:pctCrowd, pctPE:pctPE, pctOr:pctOr, pctEpargneSec:pctEpargneSec };
 }
 
 function calcAV(l) {
@@ -2362,14 +2371,34 @@ function renderPE() {
 
 function detecterZoneETF(nom) {
  var n = (nom||'').toLowerCase();
+ // Or / matières premières
  if (/or\b|gold|mati.re|silver|argent|commodity|commodit|metal|métal/.test(n)) return 'Or';
- if (/emerging|émergents|émergent|em\b|chine|inde|taiwan/.test(n)) return 'Émergents';
- if (/tech|technolog|nasdaq|information tech|xtrackers|big data|artificial intel|ai &|a\.i\.|semiconduct/.test(n)) return 'Tech';
- if (/europe|stoxx|euro stoxx|euronext|cac|dax/.test(n)) return 'Europe';
- if (/s&p 500|s&p500|sp500|usa|us equity|united states/.test(n)) return 'USA';
- if (/world|monde|msci world|global|acwi|all country/.test(n)) return 'Monde';
- return 'Monde';
+ // Émergents
+ if (/emerging|émergents|émergent|\bem\b|chine|inde|taiwan|brésil|bresil|corée|coree|emerging markets/.test(n)) return 'Émergents';
+ // Small caps US
+ if (/small.?cap|smallcap|russell 2000|s&p 600|s&p600|sp600|iwm\b|micro.?cap/.test(n)) return 'Small caps US';
+ // Tech
+ if (/tech|technolog|nasdaq|information tech|big data|artificial intel|ai &|a\.i\.|semiconduct|qqq\b|esn\b/.test(n)) return 'Tech';
+ // Europe
+ if (/europe|stoxx|euro stoxx|euronext|cac\b|dax\b|ftse|msci europe|msci emu/.test(n)) return 'Europe';
+ // USA large caps (S&P 500, MSCI USA, etc.)
+ if (/s&p 500|s&p500|sp500|\busa\b|us equity|united states|msci usa|s&p us|voo\b|ivv\b|spy\b|iusa\b|500/.test(n)) return 'USA large caps';
+ // World (par défaut pour les ETF mondiaux)
+ if (/world|monde|msci world|global|acwi|all country|ewld\b|wpea\b/.test(n)) return 'Monde';
+ return 'Non classé';
 }
+
+// Cibles de répartition interne de la poche ETF
+var ETF_ZONES_CIBLES = {
+ 'USA large caps': 55,
+ 'Europe':         22,
+ 'Émergents':      13,
+ 'Small caps US':   5,
+ 'Tech':            5,
+ 'Monde':           0,
+ 'Or':              0,
+ 'Non classé':      0
+};
 
 function renderInvest() {
  var m = parseInt(document.getElementById('invest-mois').value);
@@ -2385,6 +2414,7 @@ function renderInvest() {
  var pctCrowd = _c.pctCrowd;
  var pctPE = _c.pctPE;
  var pctOr = _c.pctOr;
+ var pctEpargneSec = _c.pctEpargneSec;
 
  var totalDepenses = 0, nbMoisDepenses = 0;
  ['charges','emprunts','abonnements','loisirs'].forEach(function(sec){
@@ -2393,30 +2423,48 @@ function renderInvest() {
  });
  });
  var moyenneDepenses = nbMoisDepenses > 0 ? totalDepenses / 12 : 0;
- var cibleLivretACalc = moyenneDepenses * 3;
- var cibleLivretA = DB.cibleLivretA != null ? DB.cibleLivretA : cibleLivretACalc;
+
+ // Épargne sécurité : Livret A (50%, saisie manuelle) + Fonds euros AV (50%, depuis onglet AV)
  var soldeLivretA = DB.livretA || 0;
- var manqueLivretA = Math.max(0, cibleLivretA - soldeLivretA);
+ // Calcul du solde fonds euros depuis les 2 AV
+ var soldeFondsEuros = 0;
+ ['avenir2','spirit2'].forEach(function(k){
+ (DB.av[k]||[]).forEach(function(l){ if (l.type==='fonds') soldeFondsEuros += l.prixActuel||0; });
+ });
+ var cibleSecurite = DB.cibleLivretA != null ? DB.cibleLivretA : moyenneDepenses * 3;
+ var soldeSecurite = soldeLivretA + soldeFondsEuros;
+ var cibleAtteinte = soldeSecurite >= cibleSecurite;
 
  var laEl = document.getElementById('livret-a-info');
  if (laEl) {
- var pctAtteint = cibleLivretA > 0 ? Math.min(100, soldeLivretA/cibleLivretA*100) : 100;
+ var pctAtteintSec = cibleSecurite > 0 ? Math.min(100, soldeSecurite/cibleSecurite*100) : 100;
  laEl.innerHTML =
- '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:8px">'+
- '<div class="kpi" style="padding:8px"><div class="kl">Solde actuel</div><div class="kv c-blue">'+fmt(soldeLivretA)+'</div></div>'+
- '<div class="kpi" style="padding:8px"><div class="kl">Cible auto (3x dep.)</div><div class="kv c-muted">'+fmt(cibleLivretACalc)+'</div></div>'+
- '<div class="kpi" style="padding:8px;cursor:pointer" onclick="majCibleLivretA('+cibleLivretA+')"><div class="kl">Cible définie ✏️</div><div class="kv c-purple">'+fmt(cibleLivretA)+'</div></div>'+
- '<div class="kpi" style="padding:8px"><div class="kl">Il manque</div><div class="kv '+(manqueLivretA>0?'c-orange':'c-green')+'">'+fmt(manqueLivretA)+'</div></div>'+
+ '<div style="display:grid;grid-template-columns:repeat(2,1fr) repeat(2,1fr);gap:10px;margin-bottom:8px">'+
+ '<div class="kpi" style="padding:8px"><div class="kl">Livret A (actuel)</div><div class="kv c-blue">'+fmt(soldeLivretA)+'</div></div>'+
+ '<div class="kpi" style="padding:8px"><div class="kl">Fonds euros AV (actuel)</div><div class="kv c-blue">'+fmt(soldeFondsEuros)+'</div></div>'+
+ '<div class="kpi" style="padding:8px"><div class="kl">Total sécurité</div><div class="kv '+(cibleAtteinte?'c-green':'c-orange')+'">'+fmt(soldeSecurite)+'</div></div>'+
+ '<div class="kpi" style="padding:8px;cursor:pointer" onclick="majCibleLivretA('+cibleSecurite+')"><div class="kl">Cible (3× dép.) ✏️</div><div class="kv c-purple">'+fmt(cibleSecurite)+'</div></div>'+
  '</div>'+
  '<div style="height:6px;background:var(--bg3);border-radius:3px;overflow:hidden">'+
- '<div style="height:100%;width:'+pctAtteint.toFixed(0)+'%;background:'+(pctAtteint>=100?'var(--green)':'var(--orange)')+';border-radius:3px;transition:width 0.3s"></div>'+
+ '<div style="height:100%;width:'+pctAtteintSec.toFixed(0)+'%;background:'+(pctAtteintSec>=100?'var(--green)':'var(--orange)')+';border-radius:3px;transition:width 0.3s"></div>'+
  '</div>'+
- '<div style="font-size:10px;color:var(--muted);margin-top:4px">'+pctAtteint.toFixed(0)+'% de la cible atteinte</div>';
+ '<div style="font-size:10px;color:var(--muted);margin-top:4px">'+pctAtteintSec.toFixed(0)+'% de la cible atteinte'+(cibleAtteinte?' — ✅ Cible atteinte, 3% redistribués sur SCPI/Crowd/PE':' — Livret A et Fonds euros à alimenter')+'</div>';
  }
 
  var budgetBrut = CA * ((DB.tauxInvest||6)/100);
- var versementLivretA = Math.min(manqueLivretA, budgetBrut * 0.314);
- var budget = budgetBrut - versementLivretA;
+ // Versement sécurité : 3% du budget brut, mais seulement si cible non atteinte
+ var versementSecurite = cibleAtteinte ? 0 : Math.min(cibleSecurite - soldeSecurite, budgetBrut * pctEpargneSec);
+ // Si cible atteinte : redistribuer les 3% sur SCPI/Crowd/PE pro-rata (13/5/10)
+ if (cibleAtteinte) {
+ var redist = budgetBrut * pctEpargneSec;
+ var sommeRedist = pctSCPI + pctCrowd + pctPE; // 0.28
+ pctSCPI += redist / budgetBrut * (pctSCPI / sommeRedist);
+ pctCrowd += redist / budgetBrut * (pctCrowd / sommeRedist);
+ pctPE += redist / budgetBrut * (pctPE / sommeRedist);
+ }
+ var versementLivretA = versementSecurite / 2; // 50% vers Livret A
+ var versementFondsEurosSecurite = versementSecurite / 2; // 50% vers fonds euros AV
+ var budget = budgetBrut - versementSecurite;
 
  var pos = calcPositions ? calcPositions() : {};
  var classeActu = { etf:0, scpi:0, crowd:0, or:0, pe:0 };
@@ -2460,8 +2508,9 @@ function renderInvest() {
  document.getElementById('invest-kpis').innerHTML=
  '<div class="kpi"><div class="kl">CA '+MOIS[m]+'</div><div class="kv c-blue">'+fmt(CA)+'</div></div>'+
  '<div class="kpi"><div class="kl">À investir (<span id="taux-invest-val">'+(DB.tauxInvest||6)+'</span>% CA) <button class="btn btn-ghost" style="font-size:9px;padding:1px 5px;margin-left:4px" onclick="majTauxInvest()">✏️</button></div><div class="kv c-purple">'+fmt(budgetBrut)+'</div></div>'+
- '<div class="kpi"><div class="kl">'+(DB.strategiePcts ? 'Stratégie personnalisée' : 'Règle 110−âge ('+age+' ans)')+'</div><div class="kv c-blue">'+Math.round(pctActions*100)+'% actions · '+Math.round((1-pctActions)*100)+'% sécurité</div></div>'+
- '<div class="kpi"><div class="kl">Budget net (hors Livret A)</div><div class="kv c-green">'+fmt(budget)+'</div></div>'+
+ '<div class="kpi"><div class="kl">'+(DB.strategiePcts ? 'Stratégie personnalisée' : 'Règle 110−âge ('+age+' ans)'+(risqueStrat!=='moyen'?' · risque '+(risqueStrat==='faible'?'faible −10%':'élevé +10%'):''))+'</div><div class="kv c-blue">'+Math.round(pctActions*100)+'% actions · '+Math.round((1-pctActions)*100)+'% sécurité</div></div>'+
+ '<div class="kpi"><div class="kl">Budget net (hors épargne sécurité)</div><div class="kv c-green">'+fmt(budget)+'</div></div>'+
+ '<div class="kpi"><div class="kl">Épargne sécurité ce mois</div><div class="kv '+(versementSecurite>0?'c-orange':'c-green')+'">'+(versementSecurite>0?fmt(versementSecurite)+' (cible non atteinte)':'✅ Cible atteinte — 3% redistribués')+'</div></div>'+
  '<div class="kpi"><div class="kl">AV Karine — Split stratégie (SCPI/Fond €)</div><div class="kv c-muted">'+splitKarinePct+'% / '+(100-splitKarinePct)+'%</div></div>';
 
  var mETF = budget * pctsMoisClasses['etf'];
@@ -2471,8 +2520,8 @@ function renderInvest() {
  var mOr = budget * pctsMoisClasses['or'];
  var mPE = budget * pctsMoisClasses['pe'];
 
- var ZONES_CIBLES = { Monde:0.75, 'Émergents':0.20, Tech:0.05, USA:0, Europe:0 };
- var zonesActu = { Monde:0, USA:0, Europe:0, Tech:0, 'Émergents':0 };
+ var ZONES_CIBLES = { 'USA large caps':0.55, 'Europe':0.22, 'Émergents':0.13, 'Small caps US':0.05, 'Tech':0.05, 'Monde':0, 'Non classé':0 };
+ var zonesActu = { 'USA large caps':0, 'Europe':0, 'Émergents':0, 'Small caps US':0, 'Tech':0, 'Monde':0, 'Non classé':0 };
  var totalETFActu = 0;
  Object.values(pos||{}).forEach(function(p){
  var v = p.sommeLive||0; if (!v) return;
@@ -2482,10 +2531,10 @@ function renderInvest() {
  ['avenir2','spirit2'].forEach(function(k){ (DB.av[k]||[]).forEach(function(l){
  if (l.type !== 'etf') return;
  var v = calcAV(l).val; if (!v) return;
- var z = detecterZoneETF ? detecterZoneETF(l.nom) : 'Monde';
+ var z = detecterZoneETF ? detecterZoneETF(l.nom) : 'Non classé';
  if (zonesActu[z] !== undefined) { zonesActu[z] += v; totalETFActu += v; }
  }); });
- var zonesNoms = ['Monde','USA','Europe','Tech','Émergents'];
+ var zonesNoms = ['USA large caps','Europe','Émergents','Small caps US','Tech'];
  var ecarts = {};
  zonesNoms.forEach(function(z){
  var poidsActu = totalETFActu > 0 ? zonesActu[z] / totalETFActu : ZONES_CIBLES[z];
@@ -2499,11 +2548,13 @@ function renderInvest() {
  } else {
  zonesNoms.forEach(function(z){ pctsMois[z] = scores[z] / totalScores; });
  }
- var mMonde = mETF * pctsMois['Monde'];
- var mUSA = mETF * pctsMois['USA'];
- var mEurope = mETF * pctsMois['Europe'];
- var mTech = mETF * pctsMois['Tech'];
- var mEmerg = mETF * pctsMois['Émergents'];
+ var mUSALarge  = mETF * pctsMois['USA large caps'];
+ var mEurope    = mETF * pctsMois['Europe'];
+ var mEmerg     = mETF * pctsMois['Émergents'];
+ var mSmallUS   = mETF * pctsMois['Small caps US'];
+ var mTech      = mETF * pctsMois['Tech'];
+ var mMonde     = mETF * (pctsMois['Monde']||0); // ETF World générique (rétrocompat)
+ var mUSA       = mUSALarge; // alias rétrocompat
 
  var CLASSES_LABELS = { etf:'ETF Actions', scpi:'SCPI (AV)', crowd:'Crowdfunding', or:'Matières prem.', pe:'Private Equity' };
  var CLASSES_COLORS = { etf:'var(--blue)', scpi:'var(--purple)', crowd:'var(--green)', or:'var(--yellow)', pe:'var(--orange)' };
@@ -2560,10 +2611,13 @@ function renderInvest() {
  return { parts:nbParts, montantReel:montantUtilise, reporter:false, moisManquants:0, report:reste };
  }
 
- var rMonde = calcParts('monde', mMonde, prixMonde);
- var rTech = calcParts('tech', mTech, prixTech);
- var rEmerg = calcParts('emerg', mEmerg, prixEmerg);
- var rOr = calcParts('or', mOr, prixOr);
+ var rUSALarge = calcParts('usaLarge', mUSALarge, DB.prixLive&&DB.prixLive['S&P 500']?DB.prixLive['S&P 500']:0);
+ var rEurope  = calcParts('europe',   mEurope,   DB.prixLive&&DB.prixLive['MSCI Europe']?DB.prixLive['MSCI Europe']:0);
+ var rEmerg   = calcParts('emerg',    mEmerg,    DB.prixLive&&DB.prixLive['MSCI Emerging Markets ESG']?DB.prixLive['MSCI Emerging Markets ESG']:0);
+ var rSmallUS = calcParts('smallUS',  mSmallUS,  DB.prixLive&&DB.prixLive['Russell 2000']?DB.prixLive['Russell 2000']:0);
+ var rTech    = calcParts('tech',     mTech,     DB.prixLive&&DB.prixLive['Al & Big Data']?DB.prixLive['Al & Big Data']:0);
+ var rMonde   = calcParts('monde',    mMonde,    prixMonde); // rétrocompat si ancien ETF World encore présent
+ var rOr      = calcParts('or',       mOr,       DB.prixLive&&DB.prixLive['Physical Gold']?DB.prixLive['Physical Gold']:0);
 
  function etfDetail(nom, r, montantCible, prix) {
  if (r.reporter) {
@@ -2573,14 +2627,19 @@ function renderInvest() {
  return '<span style="color:var(--green)">'+nom+' x'+r.parts+(prix>0?' @ '+fmt2(prix):'')+' = '+fmt(r.montantReel)+'</span>';
  }
 
- var mPEA = (rMonde.reporter?0:rMonde.montantReel) + (rEmerg.reporter?0:rEmerg.montantReel) + mPE;
+ var mPEA = (rUSALarge.reporter?0:rUSALarge.montantReel)
+         + (rEurope.reporter?0:rEurope.montantReel)
+         + (rEmerg.reporter?0:rEmerg.montantReel)
+         + (rSmallUS.reporter?0:rSmallUS.montantReel)
+         + (rMonde.reporter?0:rMonde.montantReel)
+         + mPE;
  var mCTO = mOr + mTech;
 
  // AV Flo (Avenir 2) : 50/50 imposé par l'assurance
  // Budget = moitié du SCPI stratégie + moitié du Fonds euros stratégie
  var mAVFloSCPI = mSCPI / 2;
  var mAVFloFonds = mFondsTotal / 2;
- var mAVFloBrut = mAVFloSCPI + mAVFloFonds + (versementLivretA > 0 ? versementLivretA / 4 : 0);
+ var mAVFloBrut = mAVFloSCPI + mAVFloFonds;
  var mAVFloCumul = mAVFloBrut + (reports['avflo'] || 0);
  var mAVFlo = mAVFloCumul >= 100 ? mAVFloCumul : 0;
  // Recalcul après report pour garder le bon split
@@ -2594,35 +2653,23 @@ function renderInvest() {
  // AV Karine (Spirit 2) : split selon stratégie (SCPI% / Fonds%)
  // Budget = moitié du SCPI stratégie + moitié du Fonds euros stratégie
  var mAVKarineSCPI = mSCPI / 2;
- var mAVKarineFonds = mFondsTotal / 2 + (versementLivretA > 0 ? versementLivretA / 4 : 0);
+ var mAVKarineFonds = mFondsTotal / 2;
  var mAVKarine = mAVKarineSCPI + mAVKarineFonds;
 
- var mLA2 = versementLivretA > 0 ? versementLivretA / 2 : 0;
- var totalReel = mPEA + mCTO + mAVFlo + mAVKarine + mCrowd + mLA2;
+ var totalReel = mPEA + mCTO + mAVFlo + mAVKarine + mCrowd + versementSecurite;
 
  var newReports = {};
- if (rMonde.reporter) newReports['monde'] = rMonde.report;
- if (rTech.reporter) newReports['tech'] = rTech.report;
- if (rEmerg.reporter) newReports['emerg'] = rEmerg.report;
- if (rOr.reporter) newReports['or'] = rOr.report;
+ [{k:'usaLarge',r:rUSALarge},{k:'europe',r:rEurope},{k:'emerg',r:rEmerg},{k:'smallUS',r:rSmallUS},{k:'tech',r:rTech},{k:'monde',r:rMonde},{k:'or',r:rOr}].forEach(function(x){
+  if (x.r.report > 0) newReports[x.k] = x.r.report;
+ });
  if (mSCPI < 100) newReports['avflo'] = (reports['avflo']||0) + mSCPI;
- if (!rMonde.reporter && rMonde.report > 0) newReports['monde'] = rMonde.report;
- if (!rTech.reporter && rTech.report > 0) newReports['tech'] = rTech.report;
- if (!rEmerg.reporter && rEmerg.report > 0) newReports['emerg'] = rEmerg.report;
- if (!rOr.reporter && rOr.report > 0) newReports['or'] = rOr.report;
  window._pendingReports = { mois: m, reports: newReports };
 
  var envs = [];
 
- if (versementLivretA > 0) {
- var mLA = versementLivretA / 2;
- var mFondsFlo = versementLivretA / 4;
- var mFondsKarine = versementLivretA / 4;
- envs.push({ nom:'Livret A', montant:mLA, couleur:'var(--blue)',
- detail:'Epargne de precaution — solde '+fmt(soldeLivretA)+' / cible '+fmt(cibleLivretA)+' (budget securite total: '+fmt(versementLivretA)+')'});
-
- envs.push({ nom:'Fond euros '+labelAV2(), montant:mFondsKarine, couleur:'var(--purple)',
- detail:'1/4 du budget securite'});
+ if (versementSecurite > 0) {
+ envs.push({ nom:'🔐 Épargne sécurité', montant:versementSecurite, couleur:'var(--blue)',
+ detail:'Livret A '+fmt(versementLivretA)+' + Fonds euros AV '+fmt(versementFondsEurosSecurite)+' — solde '+fmt(soldeSecurite)+' / cible '+fmt(cibleSecurite)});
  }
 
  envs = envs.concat([
@@ -2651,9 +2698,10 @@ function renderInvest() {
 
  var blocs = [];
 
- if (versementLivretA > 0) {
- blocs.push({ nom:'Livret A', couleur:'var(--blue)', total: versementLivretA/2, lignes:[
- { label:'Épargne de précaution', mt: versementLivretA/2, note: fmt(soldeLivretA)+' → cible '+fmt(cibleLivretA) }
+ if (versementSecurite > 0) {
+ blocs.push({ nom:'🔐 Épargne sécurité', couleur:'var(--blue)', total: versementSecurite, lignes:[
+ { label:'Livret A (50%)', mt: versementLivretA, note: 'Solde actuel : '+fmt(soldeLivretA)+' — saisie manuelle' },
+ { label:'Fonds euros AV (50%)', mt: versementFondsEurosSecurite, note: 'Via versements AV — solde actuel : '+fmt(soldeFondsEuros) }
  ]});
  }
 
@@ -2665,14 +2713,17 @@ function renderInvest() {
  lignesPEA.push({ label:label, mt:r.montantReel, note:'× '+r.parts+(prix?' @ '+fmt2(prix):'')+(r.report>0?' +'+fmt(r.report)+' reste':'') });
  }
  }
- ajouterLigneETF('ETF Monde (MSCI World)', rMonde, mMonde, prixMonde);
- ajouterLigneETF('ETF Émergents', rEmerg, mEmerg, prixEmerg);
+ if (mUSALarge > 0 || rUSALarge.reporter) ajouterLigneETF('🇺🇸 ETF USA large caps (S&P 500)', rUSALarge, mUSALarge, DB.prixLive&&DB.prixLive['S&P 500']?DB.prixLive['S&P 500']:0);
+ if (mEurope  > 0 || rEurope.reporter)  ajouterLigneETF('🇪🇺 ETF Europe (MSCI Europe)',       rEurope,   mEurope,   DB.prixLive&&DB.prixLive['MSCI Europe']?DB.prixLive['MSCI Europe']:0);
+ if (mEmerg   > 0 || rEmerg.reporter)   ajouterLigneETF('🌏 ETF Émergents',                   rEmerg,    mEmerg,    DB.prixLive&&DB.prixLive['MSCI Emerging Markets ESG']?DB.prixLive['MSCI Emerging Markets ESG']:0);
+ if (mSmallUS > 0 || rSmallUS.reporter) ajouterLigneETF('📉 ETF Small caps US (Russell 2000)', rSmallUS,  mSmallUS,  DB.prixLive&&DB.prixLive['Russell 2000']?DB.prixLive['Russell 2000']:0);
+ if (mMonde   > 0 || rMonde.reporter)   ajouterLigneETF('🌐 ETF Monde (MSCI World)',           rMonde,    mMonde,    prixMonde);
  if (mPE > 0) lignesPEA.push({ label:'Private Equity', mt:mPE, note:'' });
  blocs.push({ nom:'PEA — Trade Republic', couleur:'var(--blue)', total:mPEA, lignes:lignesPEA });
 
  blocs.push({ nom:'CTO — Trade Republic', couleur:'var(--yellow)', total:mCTO, lignes:[
  { label:'Or / Matières premières', mt:mOr, note: prixOr >0 ? 'part: '+fmt2(prixOr) : '' },
- { label:'ETF Tech (Xtrackers)', mt:mTech, note: prixTech>0 ? 'part: '+fmt2(prixTech) : '' },
+ { label:'💻 ETF Tech (Nasdaq/IA)', mt:mTech, note: rTech.reporter ? '⏳ Reporter — cumul '+fmt(rTech.report) : (rTech.parts?'× '+rTech.parts+(DB.prixLive&&DB.prixLive['Al & Big Data']?' @ '+fmt2(DB.prixLive['Al & Big Data']):''):'') },
  ]});
 
  // Répartition dynamique des AV avec rééquilibrage vers les cibles
@@ -2684,7 +2735,7 @@ function renderInvest() {
  lignes.push(montantTotal > 0
  ? { label:'Versement AV', mt:montantTotal, note:'Aucun produit enregistré dans ce contrat' }
  : { label:'En attente (< 100 € min)', mt:0, note:'Cumul '+fmt(mAVFloCumul), warn:true });
- if (bonusSécurité > 0) lignes.push({ label:'Fond euros (sécurité)', mt:bonusSécurité, note:'1/4 budget sécurité' });
+ if (bonusSécurité > 0) lignes.push({ label:'Fond euros (épargne sécurité)', mt:bonusSécurité, note:'50% du versement sécurité ce mois' });
  return lignes;
  }
  var cibleScpi = cibleScpiParam !== undefined ? cibleScpiParam : 0.5;
@@ -2723,20 +2774,24 @@ function renderInvest() {
  else if (mtScpi > 0) lignes.push({ label:'SCPI (aucun produit)', mt:0, note:'Ajouter un produit SCPI dans ce contrat', warn:true });
  if (produitsFonds.length > 0) repartirProduits(produitsFonds, mtFonds, cibleFonds);
  else if (mtFonds > 0) lignes.push({ label:'Fond euros (aucun produit)', mt:0, note:'Ajouter un fond euros dans ce contrat', warn:true });
- if (bonusSécurité > 0) lignes.push({ label:'Fond euros (sécurité)', mt:bonusSécurité, note:'1/4 budget sécurité' });
+ if (bonusSécurité > 0) lignes.push({ label:'Fond euros (épargne sécurité)', mt:bonusSécurité, note:'50% du versement sécurité ce mois' });
  return lignes;
  }
 
+ // Fonds euros sécurité répartis 50/50 entre les 2 AV
+ var bonusSecuAV1 = versementFondsEurosSecurite / 2;
+ var bonusSecuAV2 = versementFondsEurosSecurite / 2;
+
  // AV Flo : split 50/50 imposé par l'assurance
- var lignesAV1 = lignesDynamiquesAV('avenir2', mAVFlo, versementLivretA > 0 ? versementLivretA/4 : 0, 0.5, 0.5);
- blocs.push({ nom:labelAV1(), couleur:'var(--purple)', total:mAVFlo+(versementLivretA>0?versementLivretA/4:0), lignes:lignesAV1 });
+ var lignesAV1 = lignesDynamiquesAV('avenir2', mAVFlo, bonusSecuAV1, 0.5, 0.5);
+ blocs.push({ nom:labelAV1(), couleur:'var(--purple)', total:mAVFlo+bonusSecuAV1, lignes:lignesAV1 });
 
  // AV Karine : split selon stratégie (SCPI% / Fonds%)
  var pctStrAVKarine = pctSCPI + pctFonds;
  var cibleScpiKarine = pctStrAVKarine > 0 ? pctSCPI / pctStrAVKarine : 0.5;
  var cibleFondsKarine = 1 - cibleScpiKarine;
- var lignesAV2 = lignesDynamiquesAV('spirit2', mAVKarine, versementLivretA > 0 ? versementLivretA/4 : 0, cibleScpiKarine, cibleFondsKarine);
- blocs.push({ nom:labelAV2(), couleur:'var(--purple)', total:mAVKarine+(versementLivretA>0?versementLivretA/4:0), lignes:lignesAV2 });
+ var lignesAV2 = lignesDynamiquesAV('spirit2', mAVKarine, bonusSecuAV2, cibleScpiKarine, cibleFondsKarine);
+ blocs.push({ nom:labelAV2(), couleur:'var(--purple)', total:mAVKarine+bonusSecuAV2, lignes:lignesAV2 });
 
  blocs.push({ nom:'La Première Brique', couleur:'var(--green)', total:mCrowd, lignes:[
  { label:'Crowdfunding immobilier', mt:mCrowd, note:'' }
@@ -3807,11 +3862,46 @@ function initTransmission() {
  renderTransmission();
 }
 
+function toggleQuestRisque() {
+ var el = document.getElementById('quest-risque');
+ if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+function calcRisque() {
+ var scores = [0,0,0,0].map(function(_,i){
+ var radios = document.querySelectorAll('input[name="qr'+(i+1)+'"]');
+ for (var r=0; r<radios.length; r++) { if (radios[r].checked) return +radios[r].value; }
+ return 0;
+ });
+ var answered = scores.filter(function(s){ return s > 0; }).length;
+ if (answered < 4) return;
+ var total = scores.reduce(function(a,b){ return a+b; }, 0);
+ // 4 questions × max 3 pts = 12 pts max
+ var profil = total <= 6 ? 'faible' : total <= 9 ? 'moyen' : 'eleve';
+ var labels = { faible:'Faible', moyen:'Moyen', eleve:'Élevé' };
+ var colors = { faible:'var(--orange)', moyen:'var(--blue)', eleve:'var(--green)' };
+ var explications = {
+ faible: 'Priorité à la sécurité — réduire la part ETF de 10%.',
+ moyen:  'Équilibre rendement / sécurité — portefeuille standard.',
+ eleve:  'Revenus garantis + long horizon — maximiser les ETF (+10%).'
+ };
+ var sel = document.getElementById('strat-risque');
+ if (sel) { sel.value = profil; }
+ var res = document.getElementById('quest-risque-result');
+ if (res) {
+ res.style.display = 'block';
+ res.style.background = 'rgba(0,0,0,0.1)';
+ res.style.color = colors[profil];
+ res.innerHTML = 'Profil détecté : <strong>'+labels[profil]+'</strong> ('+total+'/12 pts)<br><span style="font-weight:400;font-size:10px">'+explications[profil]+'</span>';
+ }
+ renderStrategie();
+}
+
 function initStrategie() {
  if (!DB.strategieProfil) { renderStrategie(); return; }
  var p = DB.strategieProfil;
- var fields = ['strat-objectif','strat-horizon','strat-tmi','strat-ifi','strat-av','strat-risque','strat-scpi-env'];
- var keys = ['obj','horizon','tmi','ifi','avDispo','risque','scpiEnv'];
+ var fields = ['strat-objectif','strat-horizon','strat-tmi','strat-ifi','strat-risque','strat-scpi-env'];
+ var keys = ['obj','horizon','tmi','ifi','risque','scpiEnv'];
  fields.forEach(function(id, i) {
  var el = document.getElementById(id);
  if (el && p[keys[i]] !== undefined) el.value = p[keys[i]];
@@ -3824,7 +3914,6 @@ function renderStrategie() {
  var horizon = document.getElementById('strat-horizon') ? document.getElementById('strat-horizon').value : 'long';
  var tmi = +(document.getElementById('strat-tmi') ? document.getElementById('strat-tmi').value : 30);
  var ifi = document.getElementById('strat-ifi') ? document.getElementById('strat-ifi').value : 'non';
- var avDispo = document.getElementById('strat-av') ? document.getElementById('strat-av').value : 'oui';
  var risque = document.getElementById('strat-risque') ? document.getElementById('strat-risque').value : 'moyen';
  var scpiEnvChoix = document.getElementById('strat-scpi-env') ? document.getElementById('strat-scpi-env').value : 'auto';
  var ageStrat = 35;
@@ -3837,7 +3926,7 @@ function renderStrategie() {
  var _cStrat = calcCibles();
  var pctActions = _cStrat.pctActions;
 
- DB.strategieProfil = { obj:obj, horizon:horizon, tmi:tmi, ifi:ifi, avDispo:avDispo, risque:risque, scpiEnv:scpiEnvChoix };
+ DB.strategieProfil = { obj:obj, horizon:horizon, tmi:tmi, ifi:ifi, risque:risque, scpiEnv:scpiEnvChoix };
  save();
  clearTimeout(window._stratSaveTimer);
  window._stratSaveTimer = setTimeout(sauvegarderFirebase, 1500);
@@ -3845,13 +3934,12 @@ function renderStrategie() {
  var strategies = [];
 
  if (obj === 'retraite') {
- var scpiNPenvAuto = (tmi >= 30 && avDispo === 'oui' && horizon === 'long') ? 'AV' : 'direct';
+ var scpiNPenvAuto = (tmi >= 30 && horizon === 'long') ? 'AV' : 'direct';
  var scpiNPenv = scpiEnvChoix === 'auto' ? scpiNPenvAuto : (scpiEnvChoix === 'av' ? 'AV' : 'direct');
  var scpiMinDirect = 1000; // ticket minimum en direct
  var scpiRaisonAuto = scpiNPenvAuto === 'AV'
- ? 'TMI '+tmi+'% + AV disponible + long terme → AV recommandée'
+ ? 'TMI '+tmi+'% + long terme → AV recommandée'
  : ifi === 'oui' ? 'IFI → NP hors assiette IFI en direct'
- : avDispo === 'non' ? 'AV pleine → direct'
  : 'Horizon court → direct';
  var scpiNPraison = scpiEnvChoix === 'auto'
  ? scpiRaisonAuto
@@ -3860,22 +3948,30 @@ function renderStrategie() {
 
  strategies = [];
  var pA = Math.round(pctActions*100);
- var pS = 100 - pA;
- var pPEA = Math.round(pA * 0.75);
- var pCTO = pA - pPEA;
- var pSCPI = Math.round(pS * 0.50);
- var pCrowd = Math.round(pS * 0.314);
- var pPE = Math.round(pS * 0.10);
- var pFonds = pS - pSCPI - pCrowd - pPE;
- strategies.push({ rang:1, icon:'📈', nom:'ETF Actions — PEA', enveloppe:'PEA (Trade Republic)', detail:'Monde + USA + Europe + Emergents. Exonere IR apres 5 ans. Regle 110-age '+pA+'%.', pct:pPEA, color:'var(--blue)', actif:'etf' });
- strategies.push({ rang:2, icon:'💻', nom:'ETF Tech + Or — CTO', enveloppe:'CTO (Trade Republic)', detail:'Tech (IA) + Or. Flat tax 31,4%.', pct:pCTO, color:'var(--yellow)', actif:'cto' });
- strategies.push({ rang:3, icon:'🏢', nom:'SCPI — '+scpiNPenv, enveloppe:scpiNPenv === 'AV' ? 'AV Spirit 2 (Linxea)' : 'Direct — min '+scpiMinDirect+'EUR', detail:'Decote 30-40%. Zero fiscalite. '+scpiNPraison, pct:pSCPI, color:'var(--purple)', actif:'scpi', badge:scpiNPenv === 'AV' ? 'En AV' : 'En direct' });
- strategies.push({ rang:4, icon:'🏗️', nom:'Crowdfunding', enveloppe:'La Premiere Brique', detail:'Rendement 8-12% brut. Horizon 12-24 mois.', pct:pCrowd, color:'var(--green)', actif:'crowd' });
+ var _cStrat2 = calcCibles();
+ var pSCPI = Math.round(_cStrat2.pctSCPI * 100);  // 13%
+ var pCrowd = Math.round(_cStrat2.pctCrowd * 100); // 5%
+ var pPE = Math.round(_cStrat2.pctPE * 100);       // 10%
+ var pOr = Math.round(_cStrat2.pctOr * 100);       // 5%
+ var pEpSec = Math.round(_cStrat2.pctEpargneSec * 100); // 3%
+ // ETF = ce qui reste (100 - SCPI - Crowd - PE - Or - EpargneSec)
+ var pETFtotal = 100 - pSCPI - pCrowd - pPE - pOr - pEpSec;
+ var pPEA = Math.round(pETFtotal * 0.90); // 90% des ETF en PEA (hors Tech+Or en CTO)
+ var pCTO = pETFtotal - pPEA + pOr;      // reste ETF + Or en CTO
+ // Répartition interne ETF (110-âge pour le total, sous-répartition fixe)
+ var etfSousDetail = 'USA large caps 55% · Europe 22% · Émergents 13% · Small caps US 5% · Tech 5%. Exonéré IR après 5 ans. Règle 110−âge : '+pA+'% actions.';
+ strategies.push({ rang:1, icon:'📈', nom:'ETF Actions — PEA', enveloppe:'PEA (Trade Republic)', detail:etfSousDetail, pct:pPEA, color:'var(--blue)', actif:'etf', sousRepartition:[
+  { label:'🇺🇸 USA large caps', pct:55 },
+  { label:'🇪🇺 Europe',         pct:22 },
+  { label:'🌏 Émergents',       pct:13 },
+  { label:'📉 Small caps US',   pct: 5 },
+  { label:'💻 Tech',            pct: 5 }
+ ]});
+ strategies.push({ rang:2, icon:'💻', nom:'ETF Tech + Or — CTO', enveloppe:'CTO (Trade Republic)', detail:'Tech (IA) + Or/matières premières. Flat tax 31,4%.', pct:pCTO, color:'var(--yellow)', actif:'cto' });
+ strategies.push({ rang:3, icon:'🏢', nom:'SCPI — '+scpiNPenv, enveloppe:scpiNPenv === 'AV' ? 'AV Spirit 2 (Linxea)' : 'Direct — min '+scpiMinDirect+'EUR', detail:'Décote 30-40%. Zéro fiscalité. '+scpiNPraison, pct:pSCPI, color:'var(--purple)', actif:'scpi', badge:scpiNPenv === 'AV' ? 'En AV' : 'En direct' });
+ strategies.push({ rang:4, icon:'🏗️', nom:'Crowdfunding', enveloppe:'La Première Brique', detail:'Rendement 8-12% brut. Horizon 12-24 mois.', pct:pCrowd, color:'var(--green)', actif:'crowd' });
  strategies.push({ rang:5, icon:'💼', nom:'Private Equity', enveloppe:'Fonds PE', detail:'Horizon 5-10 ans. Rendement 10-15%.', pct:pPE, color:'var(--orange)', actif:'pe' });
- var pFondsAdj = Math.max(0, Math.round(pFonds/2));
- var pLA = pFonds - pFondsAdj;
- strategies.push({ rang:6, icon:'🏦', nom:'Fond euros — Securite', enveloppe:nomContrat1()+' + '+nomContrat2(), detail:'Epargne de securite. Capital garanti.', pct:pFondsAdj, color:'var(--muted)', actif:'fonds' });
- strategies.push({ rang:7, icon:'🏦', nom:'Livret A', enveloppe:'Livret A', detail:'Epargne de precaution. Cible : 3x depenses mensuelles. Prioritaire avant tout investissement.', pct:pLA, color:'var(--blue)', actif:'livretA' });
+ strategies.push({ rang:6, icon:'🔐', nom:'Épargne sécurité', enveloppe:'Livret A (50%) + Fonds euros AV (50%)', detail:'Cible : 3× dépenses mensuelles. Livret A saisi manuellement. Fonds euros via AV ('+nomContrat1()+' + '+nomContrat2()+'). Redistribué sur SCPI/Crowd/PE une fois cible atteinte.', pct:pEpSec, color:'var(--blue)', actif:'livretA' });
  } else if (obj === 'revenus') {
  strategies = [
  { rang:1, icon:'🏢', nom:'SCPI pleine propriété — AV', enveloppe:nomContrat1()+' (Linxea)', detail:'Loyers mensuels. Fiscalité AV après 8 ans (7,5%+PS (18,6%)). Abattement 9 200€/an couple.', pct:35, color:'var(--purple)', actif:'scpi' },
@@ -3923,12 +4019,25 @@ function renderStrategie() {
  +' | TMI '+tmi+'%'
  +' | Horizon '+(horizon==='long'?'> 10 ans':horizon==='moyen'?'5-10 ans':'< 5 ans')
  +(ifi==='oui'?' | IFI':'')
- +' | Risque '+risque
+ +' | Risque '+risque+(risque!=='moyen'?' (ETF '+(risque==='faible'?'−10%':'+10%')+')':'')
  +'</div>';
 
  html += '<div class="panel mb12"><div class="panel-title">📋 Stratégie recommandée</div><div style="margin-top:10px">';
 
  strategies.forEach(function(s) {
+ var sousRepartHtml = '';
+ if (s.sousRepartition && s.sousRepartition.length) {
+  sousRepartHtml = '<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:4px">';
+  s.sousRepartition.forEach(function(sr) {
+   // Calculer l'écart avec le portefeuille réel si possible
+   var ecartHtml = '';
+   var etfBourse = DB.bourse ? DB.bourse.filter(function(t){ return detecterZoneETF(t.nom) === sr.label.replace(/^[^\wÀ-ž]+/,'').trim(); }) : [];
+   sousRepartHtml += '<span style="font-size:10px;background:rgba(99,102,241,0.12);color:var(--blue);border-radius:12px;padding:2px 8px;font-weight:600">'
+    +sr.label+' <b>'+sr.pct+'%</b>'
+    +'</span>';
+  });
+  sousRepartHtml += '</div>';
+ }
  html += '<div style="display:flex;align-items:flex-start;gap:12px;padding:12px;border-radius:8px;margin-bottom:8px;background:var(--bg3);border-left:3px solid '+s.color+'">'
  +'<div style="font-size:20px;flex-shrink:0">'+s.icon+'</div>'
  +'<div style="flex:1">'
@@ -3939,6 +4048,7 @@ function renderStrategie() {
  +'</div>'
  +'<div style="font-size:10px;color:var(--blue);margin:2px 0">📍 '+s.enveloppe+'</div>'
  +'<div style="font-size:11px;color:var(--muted);margin-top:4px">'+s.detail+'</div>'
+ +sousRepartHtml
  +'</div></div>';
  });
 
@@ -4979,20 +5089,57 @@ setTimeout(function() {
  <option value="oui">Oui (&gt; 1,3M€ patrimoine immobilier)</option>
  </select>
  </div>
- <div>
- <label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px">🛡️ Capacité AV restante</label>
- <select id="strat-av" onchange="renderStrategie()" style="width:100%">
- <option value="oui" selected>Oui, j'ai de la capacité</option>
- <option value="non">Non, AV pleine</option>
- </select>
+ <div style="grid-column:1/-1">
+ <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+ <label style="font-size:10px;color:var(--muted)">📊 Tolérance au risque</label>
+ <button class="btn btn-ghost" style="font-size:9px;padding:2px 7px" onclick="toggleQuestRisque()">🧭 Questionnaire</button>
  </div>
- <div>
- <label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px">📊 Tolérance au risque</label>
  <select id="strat-risque" onchange="renderStrategie()" style="width:100%">
  <option value="faible">Faible — je veux sécuriser</option>
  <option value="moyen" selected>Moyen — équilibre rendement/risque</option>
  <option value="eleve">Élevé — je veux maximiser</option>
  </select>
+ <!-- Questionnaire risque -->
+ <div id="quest-risque" style="display:none;margin-top:10px;padding:10px;background:var(--bg3);border-radius:8px;border:1px solid var(--border)">
+ <div style="font-size:11px;font-weight:700;margin-bottom:10px;color:var(--text)">4 questions pour calibrer votre profil</div>
+ <!-- Q1 -->
+ <div style="margin-bottom:10px">
+ <div style="font-size:10px;color:var(--muted);margin-bottom:5px">1. Votre portefeuille perd 30% en un an. Vous…</div>
+ <div style="display:flex;flex-direction:column;gap:4px">
+ <label style="font-size:10px;cursor:pointer"><input type="radio" name="qr1" value="1" onchange="calcRisque()"> Vendez tout pour limiter les pertes</label>
+ <label style="font-size:10px;cursor:pointer"><input type="radio" name="qr1" value="2" onchange="calcRisque()"> N'y touchez pas, mais vous êtes stressé(e)</label>
+ <label style="font-size:10px;cursor:pointer"><input type="radio" name="qr1" value="3" onchange="calcRisque()"> Rachetez davantage, c'est une opportunité</label>
+ </div>
+ </div>
+ <!-- Q2 -->
+ <div style="margin-bottom:10px">
+ <div style="font-size:10px;color:var(--muted);margin-bottom:5px">2. Dans combien d'années avez-vous besoin de cet argent ?</div>
+ <div style="display:flex;flex-direction:column;gap:4px">
+ <label style="font-size:10px;cursor:pointer"><input type="radio" name="qr2" value="1" onchange="calcRisque()"> Moins de 10 ans</label>
+ <label style="font-size:10px;cursor:pointer"><input type="radio" name="qr2" value="2" onchange="calcRisque()"> Entre 10 et 20 ans</label>
+ <label style="font-size:10px;cursor:pointer"><input type="radio" name="qr2" value="3" onchange="calcRisque()"> Plus de 20 ans</label>
+ </div>
+ </div>
+ <!-- Q3 -->
+ <div style="margin-bottom:10px">
+ <div style="font-size:10px;color:var(--muted);margin-bottom:5px">3. Vos revenus sont…</div>
+ <div style="display:flex;flex-direction:column;gap:4px">
+ <label style="font-size:10px;cursor:pointer"><input type="radio" name="qr3" value="1" onchange="calcRisque()"> Variables ou incertains</label>
+ <label style="font-size:10px;cursor:pointer"><input type="radio" name="qr3" value="2" onchange="calcRisque()"> Stables (salarié privé)</label>
+ <label style="font-size:10px;cursor:pointer"><input type="radio" name="qr3" value="3" onchange="calcRisque()"> Garantis (fonctionnaire, retraite)</label>
+ </div>
+ </div>
+ <!-- Q4 -->
+ <div style="margin-bottom:10px">
+ <div style="font-size:10px;color:var(--muted);margin-bottom:5px">4. Votre épargne de sécurité (3× dépenses) est…</div>
+ <div style="display:flex;flex-direction:column;gap:4px">
+ <label style="font-size:10px;cursor:pointer"><input type="radio" name="qr4" value="1" onchange="calcRisque()"> Pas encore constituée</label>
+ <label style="font-size:10px;cursor:pointer"><input type="radio" name="qr4" value="2" onchange="calcRisque()"> Partiellement constituée</label>
+ <label style="font-size:10px;cursor:pointer"><input type="radio" name="qr4" value="3" onchange="calcRisque()"> Pleinement constituée</label>
+ </div>
+ </div>
+ <div id="quest-risque-result" style="display:none;padding:8px;border-radius:6px;font-size:11px;text-align:center;font-weight:700"></div>
+ </div>
  </div>
  <div>
  <label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px">🏢 SCPI — enveloppe préférée</label>
