@@ -4031,7 +4031,7 @@ function renderStrategie() {
   s.sousRepartition.forEach(function(sr) {
    // Calculer l'écart avec le portefeuille réel si possible
    var ecartHtml = '';
-   var etfBourse = DB.bourse ? DB.bourse.filter(function(t){ return detecterZoneETF(t.nom) === sr.label.replace(/^[^\wÀ-ž]+/,'').trim(); }) : [];
+   var etfBourse = Array.isArray(DB.bourse) ? DB.bourse.filter(function(t){ return detecterZoneETF(t.nom) === sr.label.replace(/^[^\wÀ-ž]+/,'').trim(); }) : [];
    sousRepartHtml += '<span style="font-size:10px;background:rgba(99,102,241,0.12);color:var(--blue);border-radius:12px;padding:2px 8px;font-weight:600">'
     +sr.label+' <b>'+sr.pct+'%</b>'
     +'</span>';
